@@ -8,9 +8,10 @@
 ## 怎么玩（最快路径）
 
 **双击打开 `web/index.html` 即可玩**（单 HTML 文件；3D 需联网加载引擎，离线自动走 2D）。
-- 主菜单顶部可切换两种模式（点击对应标签）：
+- 主菜单顶部可切换三种模式（点击对应标签）：
   - **BREACH 破堤 · 5v5**：选干员/武器/护甲 → 部署 → 进入第一人称对局。
   - **SALVAGE 打捞 · 单人撤离**：直接开局，潮汐涨落中潜入、搜刮战利品、在撤离点撤离。
+  - **SURGE 涌潮 · 12v12 占点**：12v12 抢 3 座浮动泵站，潮汐涨落 + 随机涌潮淹没低地，`Q` 涌潮步位移形夺点。先到 150 分或 600s 结算。
 - 第一人称操作（两种模式通用）：
   - 点击画面 **锁定鼠标** 控制视角（移动鼠标 = 转向/俯仰）
   - `W A S D` 移动（相对视角前后/左右）
@@ -41,7 +42,9 @@ TIDELINE/
 │  ├─ README_测试说明.txt    测试者一页纸说明
 │  └─ tools/
 │     ├─ test_breach_headless.js  ★ 无浏览器逻辑冒烟测试（66 项）
-│     ├─ test_fp3d_smoke.js       ★ 第一人称 3D 渲染路径冒烟测试（5 项）
+│     ├─ test_salvage_headless.js ★ SALVAGE 单人撤离仿真（23 项）
+│     ├─ test_surge_headless.js   ★ SURGE 12v12 占点逻辑仿真（19 项）
+│     ├─ test_fp3d_smoke.js       ★ 第一人称 3D 渲染路径冒烟测试（10 项）
 │     ├─ sim_verify.py            纯逻辑数值校验（Python）
 │     ├─ self_check.gd / probe_heightmap.gd / bake_navmeshes.gd
 └─ （Godot 编辑器/导出模板需你在本机安装，沙箱环境无法产出可执行包）
@@ -68,6 +71,10 @@ TIDELINE/
   4 打捞无人机 · 潮汐守望者（随水位强化护甲）· 4 个撤离点（随水位关闭）·
   背包重量惩罚 · 局外信用持久化（localStorage）· 埋点遥测。
 - 第一人称 3D（两种模式共用）。
+- **SURGE 涌潮 · 12v12 占点**（01_核心设定集 §模式三）：与 BREACH/SALVAGE **共用同一套 Three.js 3D / 俯视 2D 管线**；
+  12v12 抢 3 座浮动泵站（标高 3.0m）· 在场即占领、控制度 50→100 计分（×2.2/s）·
+  基础潮汐 0→1.2m（420s）+ 随机涌潮事件 +1.8m/20s · 干脚底（涉水惩罚减半）·
+  涌潮步（Q 瞬移 8m，CD 28s）· 先到 150 分或 600s 结算 · 死亡 3s 重生。
 
 ---
 
@@ -82,7 +89,10 @@ node tools/test_breach_headless.js
 # SALVAGE 单人撤离仿真（23 项）：潮汐上涨/撤离判定/超时结算/全实体压力跑
 node tools/test_salvage_headless.js
 
-# 第一人称 3D 渲染路径（7 项）：FP.init / FP.render / FP.renderSalvage 跑帧无异常
+# SURGE 12v12 占点逻辑仿真（19 项）：占领计分/涌潮事件/重生/涌潮步/全实体压力跑
+node tools/test_surge_headless.js
+
+# 第一人称 3D 渲染路径（10 项）：FP.init / FP.render / FP.renderSalvage / FP.renderSurge 跑帧无异常
 node tools/test_fp3d_smoke.js
 
 # 纯数值校验（Python，无需引擎）
@@ -97,9 +107,9 @@ python tools/sim_verify.py
   当前 5v5 另外 9 个位置由 AI 填充。
 - **可执行包（.exe）** 需你在本机：装 Godot 4.3 → 装 Win 导出模板 →
   改 `game/build_dist.bat` 的 `GODOT` 路径 → 双击运行。沙箱出口带宽受限，无法在此产出。
-- 待办（按设计文档）：SURGE 涌潮 / 地图 M02–M06 / 可破坏场景 /
+- 待办（按设计文档）：地图 M02–M06 / 可破坏场景 /
   皮肤磨损 / 交易市场 / 排位赛 / 反作弊。
-  （SALVAGE 打捞已实现，见上「已落地系统」。）
+  （BREACH 5v5、SALVAGE 单人撤离、SURGE 涌潮均已实现，见上「已落地系统」。）
 
 ---
 
@@ -133,6 +143,6 @@ python tools/sim_verify.py
 
 ---
 
-_最后更新：新增 **SALVAGE 单人潮汐撤离模式**（与 BREACH 共用 3D/2D 管线、干员/枪械/经济/音频系统，主菜单可切换）；双模式分流接入 `loop()`，未改名任何 BREACH 函数以保证零回归。测试：BREACH 66/66、SALVAGE 23/23、3D 路径 7/7 全过。_
+_最后更新：新增 **SURGE 涌潮 · 12v12 占点模式**（与 BREACH/SALVAGE 共用 3D/2D 管线，主菜单三模式可切换）；三模式分流接入 `loop()`，未改名任何 BREACH 函数以保证零回归。设计依据 01_核心设定集 §模式三（浮动泵站 / 在场占领 / 随机涌潮 / 涌潮步）。测试：BREACH 66/66、SALVAGE 23/23、SURGE 19/19、3D 路径 10/10 全过。_
 
-_注：SALVAGE 仿真逻辑由外部模型提供，我已审计命名冲突（`rnd` 改名为 `srnd`）并加 `localStorage` 保护；3D 画面与单人玩法未经真实浏览器肉眼验收，靠渲染路径冒烟测试证明不抛错。_
+_注：SALVAGE 仿真逻辑由外部模型提供，我已审计命名冲突（`rnd` 改名为 `srnd`）并加 `localStorage` 保护；SURGE 由设计文档落地。3D 画面与玩法未经真实浏览器肉眼验收，靠渲染路径冒烟测试证明不抛错。_
