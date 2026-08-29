@@ -99,6 +99,18 @@
   .rv-line b{color:var(--gold)}
   .unlock{margin:14px 0;padding:10px 14px;border:1px solid var(--gold);border-radius:6px;
     color:var(--gold);font-size:13px}
+  /* 局内规则浮窗（新手引导）：开局浮现三幕时间轴，数秒后淡出 */
+  #rule-reminder{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);z-index:50;
+    background:rgba(10,16,24,.93);border:1px solid var(--orange);border-radius:10px;
+    padding:18px 28px;text-align:center;max-width:440px;opacity:0;pointer-events:none;
+    transition:opacity .5s ease;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  #rule-reminder.on{opacity:1}
+  #rule-reminder .rcap{font-size:12px;color:var(--dim);letter-spacing:.18em;margin-bottom:8px}
+  #rule-reminder .rrow{font-size:15px;line-height:1.8;font-weight:600}
+  #rule-reminder .rrow.low{color:#3d5a6e}
+  #rule-reminder .rrow.rising{color:#3f6fa8}
+  #rule-reminder .rrow.high{color:var(--orange)}
+  #rule-reminder .rnote{font-size:12px;color:#7d8f9a;margin-top:10px}
 </style>
 <!-- 第一人称 3D 渲染依赖 Three.js（CDN）。若离线/无 WebGL，自动降级为原俯视 2D。 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -121,12 +133,15 @@
   </div>
   <div class="statusbar" id="st-title">
     <div>债务 <span class="v" id="st-debt">—</span></div>
-    <div>信用点 <span class="v" id="st-credits">—</span></div>
     <div>撤离次数 <span class="v" id="st-extract">—</span></div>
-    <div class="goal">目标：还清债务，上岸</div>
+    <div class="detail" id="st-detail" hidden>
+      <div>信用点 <span class="v" id="st-credits">—</span></div>
+      <div class="goal">目标：还清债务，上岸</div>
+    </div>
   </div>
   <div class="btnrow">
     <button class="btn primary" id="btn-start">开 始 撤 离</button>
+    <button class="btn ghost" id="btn-detail">查 看 详 情</button>
     <button class="btn ghost" id="btn-howto">怎 么 玩</button>
   </div>
   <div class="fineprint">一局约 <b>12 分钟</b> · 第一/第三人称 · 阵亡则丢失本局战利品 · <b>WASD</b> 移动 · <b>鼠标</b> 瞄准 · <b>左键</b> 开火 · <b>R</b> 换弹 · <b>F</b> 拾取 · <b>E</b> 撤离</div>
@@ -193,6 +208,9 @@
     </div>
   </div>
 </div>
+
+<!-- 局内规则浮窗容器（由 showRuleReminder() 填充并淡出）-->
+<div id="rule-reminder"></div>
 
 <script>
 "use strict";
@@ -2042,6 +2060,7 @@ const MenuShell = {
     $('btn-start').addEventListener('click', ()=>{ AUD.resume(); this.renderDeploy(); this.show('scr-deploy'); });
     $('btn-howto').addEventListener('click', ()=>{ $('m-howto').classList.add('on'); });
     $('btn-howto-close').addEventListener('click', ()=>{ $('m-howto').classList.remove('on'); });
+    $('btn-detail').addEventListener('click', ()=>{ const d=document.getElementById('st-detail'); if(d) d.hidden=!d.hidden; });
     $('btn-deploy-back').addEventListener('click', ()=>{ this.show('scr-title'); });
     $('btn-launch').addEventListener('click', ()=>{ AUD.resume(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
     $('btn-again').addEventListener('click', ()=>{ this.hideAll(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
@@ -2077,11 +2096,12 @@ const Telemetry = {
 
 // ---- 潮汐任务控制器（唯一水位写入方）----
 const TideMission = {
-  PHASES: [
-    { name:'Low',    t0:0,   t1:180, l0:0.00, l1:0.15 },
+  BASE_PHASES: [
+    { name:'Low',    t0: 0,   t1:180, l0:0.00, l1:0.15 },
     { name:'Rising', t0:180, t1:420, l0:0.15, l1:1.50 },
     { name:'High',   t0:420, t1:600, l0:1.50, l1:3.20 },
   ],
+  PHASES: null,   // 由 Mission.start() 从 BASE_PHASES 复制而来（支持新手平滑）
   HARD_CAP: 720,
   WARNING_LEAD: 15,
   level:0, phase:'Low', t:0, running:false,
@@ -2112,6 +2132,8 @@ const TideMission = {
   },
   remaining(){ return Math.max(0, this.HARD_CAP-this.t); }
 };
+// 初始化一份可执行拷贝，避免 PHASES 为 null
+TideMission.PHASES = TideMission.BASE_PHASES.map(p=>({...p}));
 
 // ---- 地图标高（02文档 §2.2）----
 const MapHeight = {
@@ -2221,7 +2243,7 @@ const BackPack = {
 
 // ---- 撤离系统 ----
 const Extraction = {
-  CHANNEL:8, channelT:0,
+  CHANNEL:8, channelT:0, alwaysShow:false,
   points:[
     {id:'船坞闸门', pos:{x:-27,z: 0}, elev:2.2, closeAt:300},
     {id:'南路码头', pos:{x: 26,z:-4}, elev:1.0, closeAt:Infinity},
@@ -2229,7 +2251,7 @@ const Extraction = {
     {id:'高点·最终', pos:{x:17,z:12}, elev:4.0, closeAt:Infinity},
   ],
   active(){ return this.points.filter(p=>
-    TideMission.t<p.closeAt && p.elev>TideMission.level+0.2); },
+    (this.alwaysShow || TideMission.t<p.closeAt) && p.elev>TideMission.level+0.2); },
   update(dt,player){
     const z=this.active().find(p=>dist(player.pos,p.pos)<2.5);
     if(z && !player.dead){
@@ -2363,9 +2385,10 @@ class TideWarden{
 
 // ---- 玩家（单人模式）----
 const PlayerMission = {
-  pos:{x:-27,z:0}, hp:100, dead:false,
+  pos:{x:-27,z:0}, hp:100, dead:false, armor:0,  maxArmor:0,
   ammo:240, mag:30, lootT:0, lootTarget:null, kills:0, dmgTaken:0,
   reset(){ this.pos={x:-27,z:0}; this.hp=100; this.dead=false;
+    this.armor=0; this.maxArmor=0;
     this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null; this.kills=0; this.dmgTaken=0; },
   speed(){
     const ws=WaterState.update(MapHeight.depthAt(this.pos.x,this.pos.z));
@@ -2377,7 +2400,9 @@ const PlayerMission = {
   damage(v,src){
     if(this.dead) return;
     this.dmgTaken += v;
-    this.hp-=v; AUD.hurt();
+    let dmg=v;
+    if(this.armor>0){ const a=Math.min(this.armor,dmg); this.armor-=a; dmg-=a; }
+    this.hp-=dmg; AUD.hurt();
     if(this.hp<=0){ this.hp=0; this.dead=true; Mission.end(false,'killed'); }
   },
   tryLoot(dt){
@@ -2393,16 +2418,30 @@ const PlayerMission = {
 const Mission = {
   state:'IDLE', result:null, entities:{scavs:[],drones:[],warden:null},
   start(){
+    // 新手引导：前两次进入撤离模式自动套用「简易模式」，避免上来就阵亡
+    const isFirstRun = (typeof Meta!=='undefined' && Meta.data) ? Meta.data.runs < 2 : false;
+    this.novice = isFirstRun;
+    TideMission.PHASES = TideMission.BASE_PHASES.map(p=>({...p}));
+    if(isFirstRun){
+      // 水位上涨速度减半：三幕时长 ×1.5，硬上限放宽到 900s（15 分钟完整情绪曲线）
+      TideMission.PHASES.forEach(p=>{ p.t0*=1.5; p.t1*=1.5; });
+      TideMission.HARD_CAP = 900;
+    } else {
+      TideMission.HARD_CAP = 720;
+    }
     MapHeight.init(); TideMission.start(); LootSystem.spawn();
     BackPack.items=[]; PlayerMission.reset(); Extraction.reset();
+    Extraction.alwaysShow = isFirstRun;   // 撤离点全程高亮，新手不会迷路
     WaterState.cur=0;
     this.entities.scavs=[];
-    for(let i=0;i<12;i++)
+    const scavCount = isFirstRun ? 6 : 12;   // 敌人减半
+    for(let i=0;i<scavCount;i++)
       this.entities.scavs.push(new Scavenger(MapHeight.randomLowPoint(1.0)));
     this.entities.drones=[[-20,10],[20,-15],[0,18],[-15,-5]]
       .map(p=>new SalvageDrone({x:p[0],z:p[1]}));
     this.entities.warden=new TideWarden({x:0,z:0});
-    this.state='RUNNING'; Telemetry.log('mission_start',{});
+    if(isFirstRun){ PlayerMission.armor=50; PlayerMission.maxArmor=50; }  // 开局赠 1 级护甲
+    this.state='RUNNING'; Telemetry.log('mission_start',{novice:isFirstRun});
   },
   update(dt){
     if(this.state!=='RUNNING') return;
@@ -2447,6 +2486,27 @@ let salvMuzzle=0, salvCd=0, salvReloadT=0, salvWarn="", salvWarnT=0, stepAccum=0
 
 function salvageResetView(){ playerYaw=0; playerPitch=0; }
 
+function showRuleReminder(){
+  const el=document.getElementById('rule-reminder');
+  if(!el) return;
+  const ph=(typeof TideMission!=='undefined' && TideMission.PHASES) ? TideMission.PHASES
+          : (typeof TideMission!=='undefined' ? TideMission.BASE_PHASES : null);
+  const min=s=>(s%60===0)?(s/60).toFixed(0):(s/60).toFixed(1);
+  const low = ph&&ph[0] ? `${min(ph[0].t0)}–${min(ph[0].t1)}min` : '0–3min';
+  const ris = ph&&ph[1] ? `${min(ph[1].t0)}–${min(ph[1].t1)}min` : '3–7min';
+  const hig = ph&&ph[2] ? `${min(ph[2].t0)}–${min(ph[2].t1)}min` : '7–10min';
+  el.innerHTML =
+    `<div class="rcap">— 撤离时间轴 —</div>`+
+    `<div class="rrow low">${low} 低潮：搜刮物资</div>`+
+    `<div class="rrow rising">${ris} 涨潮：水位上涨，通路消失</div>`+
+    `<div class="rrow high">${hig} 满潮：冲向撤离点</div>`+
+    `<div class="rnote">记住：没撤出，一切沉底</div>`;
+  el.classList.add('on');
+  clearTimeout(el._t1); clearTimeout(el._t2);
+  el._t1=setTimeout(()=>el.classList.remove('on'),3000);
+  el._t2=setTimeout(()=>{ el.innerHTML=''; },3600);
+}
+
 function startSalvage(cfg){
   gameMode="salvage";
   SalvageLoadout.op = (cfg && cfg.op) ? cfg.op : 'kestrel';
@@ -2456,6 +2516,7 @@ function startSalvage(cfg){
   AUD.resume();
   Meta.load();
   Mission.start();
+  showRuleReminder();
   salvageResetView();
   if(FP.ok){ FP.buildSalvage(); FP.setSceneMode("salvage"); }
   salvMuzzle=0; salvCd=0; salvReloadT=0; salvWarn=""; salvWarnT=0; stepAccum=0;
