@@ -3,102 +3,83 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>TIDELINE 潮线 — 单人潮汐撤离</title>
+<title>TIDELINE 潮线 · BREACH 破堤</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   html,body { width:100%; height:100%; overflow:hidden; background:#05080c;
     font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
     color:#e6ecf2; -webkit-font-smoothing:antialiased; user-select:none; }
   #scene, #hud { position:fixed; inset:0; width:100%; height:100%; display:block; }
-  #scene { z-index:2; background:#05080c; cursor:crosshair; }
-  #hud { z-index:3; pointer-events:none; }
-  :root{
-    --steel:#1c242c; --panel:rgba(18,25,32,.88); --line:#2e3b47;
-    --text:#cfd8dc; --dim:#7d8f9a; --orange:#ff8c42;
-    --water:#3f6fa8; --ok:#4ecdc4; --danger:#e5533d; --gold:#ffd166;
+  #scene { z-index:0; background:#05080c; cursor:crosshair; }
+  #hud { z-index:1; pointer-events:none; }
+  .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(6,12,20,.26), rgba(2,5,9,.72));
+    z-index:20; backdrop-filter:blur(2px); overflow:auto; }
+  .overlay.hidden { display:none; }
+  .panel { width:min(1100px,96vw); padding:26px 32px 22px; background:rgba(10,16,24,.92);
+    border:1px solid rgba(90,170,220,.26); border-radius:14px; margin:auto;
+    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05); }
+  .panel.narrow { width:min(720px,94vw); }
+  .title { font-size:34px; font-weight:800; letter-spacing:.14em; color:#eaf4ff;
+    position:relative; animation:titlePulse 3.4s ease-in-out infinite; }
+  .title .ch { display:inline-block; transform:translateY(14px); opacity:0;
+    animation:chRise .7s cubic-bezier(.2,.7,.3,1) forwards; }
+  @keyframes chRise { to { transform:translateY(0); opacity:1; } }
+  @keyframes titlePulse {
+    0%,100% { text-shadow:0 0 14px rgba(255,150,70,.28), 0 0 34px rgba(255,120,50,.12); }
+    50%     { text-shadow:0 0 22px rgba(255,170,90,.55), 0 0 54px rgba(255,120,50,.24); }
   }
-  #bg{position:fixed;inset:0;z-index:0}
-  #vig{position:fixed;inset:0;z-index:1;pointer-events:none;
-    background:radial-gradient(ellipse at 50% 38%,transparent 42%,rgba(4,7,10,.8) 100%)}
-  .screen{position:fixed;inset:0;z-index:4;display:none;flex-direction:column;
-    align-items:center;justify-content:center;padding:20px;overflow:auto}
-  .screen.on{display:flex}
-  .tagline{letter-spacing:.5em;font-size:13px;color:var(--dim);margin-bottom:10px}
-  .logo{font-size:min(11vw,80px);font-weight:800;letter-spacing:.14em;color:#e9eff3;
-    text-shadow:0 0 40px rgba(63,111,168,.6)}
-  .logo span{display:block;font-size:.32em;letter-spacing:1.1em;color:var(--orange);
-    margin-top:6px;text-indent:.5em}
-  .pitch{margin:26px 0 18px;text-align:center;font-size:17px;line-height:1.8;color:#b9c6cf}
-  .pitch b{color:var(--orange);font-weight:600}
-  .statusbar{display:flex;gap:22px;background:var(--panel);border:1px solid var(--line);
-    border-radius:8px;padding:10px 22px;margin-bottom:26px;font-size:13px;flex-wrap:wrap;justify-content:center}
-  .statusbar .v{color:var(--gold);font-weight:700}
-  .statusbar .goal{color:var(--dim)}
-  .btnrow{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
-  .btn{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text);
-    padding:14px 42px;font-size:17px;letter-spacing:.3em;border-radius:6px;
-    transition:all .15s;text-indent:.3em}
-  .btn.primary{background:var(--orange);border-color:var(--orange);color:#14100b;font-weight:700}
-  .btn.primary:hover{filter:brightness(1.12);transform:translateY(-1px)}
-  .btn.ghost:hover{border-color:var(--orange);color:var(--orange)}
-  .fineprint{margin-top:26px;font-size:12px;color:var(--dim);letter-spacing:.1em;text-align:center}
-  .fineprint b{color:#9fb2bd}
-  #scr-deploy{justify-content:flex-start;padding-top:4vh}
-  .dep-head{display:flex;align-items:center;gap:18px;margin-bottom:14px;width:min(980px,94vw)}
-  .dep-head h2{font-size:22px;letter-spacing:.2em}
-  .dep-head .map{color:var(--dim);font-size:13px}
-  .dep-head .back{margin-left:auto;cursor:pointer;border:1px solid var(--line);
-    background:none;color:var(--dim);padding:6px 16px;border-radius:4px}
-  .dep-head .back:hover{color:var(--orange);border-color:var(--orange)}
-  .sec{width:min(980px,94vw);margin-bottom:14px}
-  .sec h3{font-size:13px;color:var(--dim);letter-spacing:.25em;margin-bottom:8px}
-  .oprow{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
-  .opcard{min-width:150px;max-width:150px;background:var(--panel);border:1px solid var(--line);
-    border-radius:6px;padding:9px 11px;cursor:pointer;flex-shrink:0}
-  .opcard.sel{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}
-  .opcard.lock{opacity:.45;cursor:not-allowed}
-  .opcard .nm{font-weight:700;font-size:14px}
-  .opcard .nm em{font-style:normal;color:var(--dim);font-size:11px;margin-left:4px}
-  .opcard .rl{font-size:11px;color:var(--orange);margin:2px 0 4px}
-  .opcard .ps{font-size:10.5px;color:var(--dim);line-height:1.5;height:48px;overflow:hidden}
-  .opcard .lk{font-size:10.5px;color:var(--gold);margin-top:3px}
-  .gunrow{display:flex;gap:10px;flex-wrap:wrap}
-  .guncard{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);
-    border-radius:6px;padding:11px 13px;cursor:pointer}
-  .guncard.sel{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}
-  .guncard .nm{font-weight:700}
-  .guncard .st{font-size:11px;color:var(--dim);margin:4px 0}
-  .guncard .st b{color:#aebfc9}
-  .guncard .ds{font-size:11px;color:var(--dim);line-height:1.55}
-  .tidebar{display:flex;height:34px;border-radius:5px;overflow:hidden;font-size:11px;color:#0e0a06}
-  .tidebar div{display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600}
-  .tidebar .low{flex:3;background:#3d5a6e}
-  .tidebar .rising{flex:4;background:#3f6fa8}
-  .tidebar .high{flex:3;background:var(--orange)}
-  .betbox{display:flex;align-items:center;gap:18px;background:var(--panel);
-    border:1px solid var(--line);border-radius:8px;padding:14px 20px;flex-wrap:wrap}
-  .betbox .warn{color:var(--danger);font-size:13px}
-  .betbox .info{font-size:13px;color:#aebfc9}
-  .betbox .go{margin-left:auto}
-  .modal{position:fixed;inset:0;z-index:6;display:none;align-items:center;justify-content:center;
-    background:rgba(5,8,11,.8)}
-  .modal.on{display:flex}
-  .mbox{width:min(720px,92vw);max-height:86vh;overflow:auto;background:var(--panel);
-    border:1px solid var(--line);border-radius:10px;padding:30px 34px}
-  .mbox h2{letter-spacing:.2em;margin-bottom:18px}
-  .step{display:flex;gap:16px;margin-bottom:16px}
-  .step .ic{width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;
-    align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#0e0a06}
-  .step .tx h4{margin-bottom:4px}
-  .step .tx p{font-size:13px;color:var(--dim);line-height:1.7}
-  .rule{border-top:1px dashed var(--line);padding-top:14px;margin-top:6px;font-size:13px;line-height:2}
-  .rule .ok{color:var(--ok)} .rule .bad{color:var(--danger)}
-  .rv-big{font-size:30px;font-weight:800;letter-spacing:.3em;margin-bottom:12px;text-align:center}
-  .rv-big.ok{color:var(--ok)} .rv-big.bad{color:var(--danger)}
-  .rv-line{font-size:14px;margin:6px 0;color:#aebfc9}
-  .rv-line b{color:var(--gold)}
-  .unlock{margin:14px 0;padding:10px 14px;border:1px solid var(--gold);border-radius:6px;
-    color:var(--gold);font-size:13px}
+  .title small { display:block; font-size:11.5px; letter-spacing:.38em; color:#5f7f96;
+    font-weight:500; margin-top:7px; }
+  .lede { margin:16px 0 4px; font-size:13.5px; line-height:1.8; color:#b0c4d4; }
+  .lede b { color:#4fb4e8; font-weight:600; }
+  .tabs { display:flex; gap:8px; margin:18px 0 12px; flex-wrap:wrap; }
+  .tab { padding:7px 18px; font-size:13px; font-weight:600; border-radius:7px; cursor:pointer;
+    background:rgba(255,255,255,.04); color:#8ba4b6; border:1px solid transparent; }
+  .tab:hover { background:rgba(90,160,210,.10); }
+  .tab.sel { background:rgba(70,150,210,.18); color:#dff0fb; border-color:rgba(110,200,255,.5); }
+  .cols { display:grid; gap:16px; }
+  .c3 { grid-template-columns:1fr 1fr 1fr; }
+  .col h3 { font-size:11.5px; letter-spacing:.2em; color:#6f93aa; font-weight:700;
+    margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(120,170,200,.16); }
+  .scroll { max-height:min(44vh,400px); overflow-y:auto; padding-right:6px; }
+  .scroll::-webkit-scrollbar { width:6px; }
+  .scroll::-webkit-scrollbar-thumb { background:rgba(110,170,210,.28); border-radius:3px; }
+  .card { padding:8px 11px; margin-bottom:6px; border-radius:7px; cursor:pointer;
+    background:rgba(255,255,255,.03); border:1px solid transparent; transition:background .12s; }
+  .card:hover { background:rgba(90,160,210,.10); }
+  .card.sel { background:rgba(70,150,210,.17); border-color:rgba(110,200,255,.55); }
+  .card.dis { opacity:.38; cursor:not-allowed; }
+  .card .n { font-size:13.5px; font-weight:700; color:#dceaf6; }
+  .card .n em { font-style:normal; font-size:10.5px; color:#7fa6bd; margin-left:6px; letter-spacing:.06em; }
+  .card .n .pr { float:right; color:#ffd36a; font-size:12px; }
+  .card .d { font-size:11px; color:#8ba4b6; margin-top:2px; line-height:1.5; }
+  .card .d b { color:#63c8f0; font-weight:600; }
+  .btn { margin-top:18px; padding:12px 34px; font-size:14.5px; font-weight:700;
+    letter-spacing:.1em; color:#04121c; background:linear-gradient(180deg,#6fd0ff,#2f9fd8);
+    border:none; border-radius:8px; cursor:pointer; transition:transform .12s;
+    box-shadow:0 8px 24px rgba(60,150,210,.32); font-family:inherit; }
+  .btn:hover { transform:translateY(-2px); }
+  .btn.ghost { background:transparent; border:1px solid rgba(120,190,230,.42);
+    color:#9fd4f0; box-shadow:none; margin-left:9px; }
+  .btn.ghost:hover { background:rgba(80,150,200,.12); }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin:16px 0 2px;
+    font-size:13px; color:#a8bccb; }
+  .stats div { display:flex; justify-content:space-between;
+    border-bottom:1px dashed rgba(120,170,200,.16); padding-bottom:4px; }
+  .stats span:last-child { color:#e8f4ff; font-weight:600; }
+  .verdict { font-size:28px; font-weight:800; }
+  .verdict.win { color:#5ce08a; } .verdict.lose { color:#ff6b5a; }
+  .sub { font-size:13px; color:#8fa4b4; margin:6px 0 2px; }
+  .hint { margin-top:12px; font-size:11.5px; color:#6d8296; line-height:1.65; }
+  .keys { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin-top:14px;
+    font-size:12px; color:#93a8b8; }
+  .keys kbd { background:rgba(80,150,200,.14); border:1px solid rgba(120,190,230,.3);
+    border-radius:5px; padding:2px 7px; font-size:11px; color:#cfe6f5; white-space:nowrap; }
+  .fac { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:9px; }
+  .lvbar { display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle; }
+  .lvbar i { width:12px; height:4px; border-radius:2px; background:rgba(255,255,255,.16); }
+  .lvbar i.on { background:#5fd0ff; }
 </style>
 <!-- 第一人称 3D 渲染依赖 Three.js（CDN）。若离线/无 WebGL，自动降级为原俯视 2D。 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -107,90 +88,68 @@
 <canvas id="scene"></canvas>
 <canvas id="hud"></canvas>
 
-<canvas id="bg"></canvas>
-<div id="vig"></div>
-
-<!-- ① 标题屏（干船坞） -->
-<div class="screen on" id="scr-title">
-  <div class="tagline">TIDELINE · 单人潮汐撤离</div>
-  <div class="logo">潮 线<span>SALVAGE THE TIDE</span></div>
-  <div class="pitch">
-    海水每年吞掉你的村庄。<b>你是潮民</b>，欠着上岸的债。<br>
-    潜入涨潮前的废弃船坞，<b>打捞值钱的东西，活着撤出来</b>。<br>
-    还清债务，你才能离开这片潮水。
-  </div>
-  <div class="statusbar" id="st-title">
-    <div>债务 <span class="v" id="st-debt">—</span></div>
-    <div>信用点 <span class="v" id="st-credits">—</span></div>
-    <div>撤离次数 <span class="v" id="st-extract">—</span></div>
-    <div class="goal">目标：还清债务，上岸</div>
-  </div>
-  <div class="btnrow">
-    <button class="btn primary" id="btn-start">开 始 撤 离</button>
-    <button class="btn ghost" id="btn-howto">怎 么 玩</button>
-  </div>
-  <div class="fineprint">一局约 <b>12 分钟</b> · 第一/第三人称 · 阵亡则丢失本局战利品 · <b>WASD</b> 移动 · <b>鼠标</b> 瞄准 · <b>左键</b> 开火 · <b>R</b> 换弹 · <b>F</b> 拾取 · <b>E</b> 撤离</div>
-</div>
-
-<!-- ② 部署屏 -->
-<div class="screen" id="scr-deploy">
-  <div class="dep-head">
-    <button class="back" id="btn-deploy-back">‹ 返回</button>
-    <h2>部署 · 干船坞</h2>
-    <div class="map">地图：沉没船坞 m01_slagwerf · 潮线预警 3/4/3 分钟</div>
-  </div>
-  <div class="statusbar" id="st-deploy">
-    <div>债务 <span class="v" id="st-debt2">—</span></div>
-    <div>信用点 <span class="v" id="st-credits2">—</span></div>
-    <div>撤离次数 <span class="v" id="st-extract2">—</span></div>
-  </div>
-  <div class="sec">
-    <h3>干员（锁定的是钩子：撤离更多次，解锁新打法）</h3>
-    <div class="oprow" id="opRow"></div>
-  </div>
-  <div class="sec">
-    <h3>武器</h3>
-    <div class="gunrow" id="gunRow"></div>
-  </div>
-  <div class="sec">
-    <h3>本局潮汐节奏（涨潮会淹没低地，提前规划路线）</h3>
-    <div class="tidebar"><div class="low">低潮 3:00</div><div class="rising">涨潮 4:00</div><div class="high">满潮 3:00</div></div>
-  </div>
-  <div class="betbox">
-    <div class="info">带出的战利品按价值结算。<b>阵亡或潮水淹没 = 丢失全部战利品</b>。</div>
-    <button class="btn primary go" id="btn-launch">下 潜 撤 离</button>
-  </div>
-</div>
-
-<!-- ③ 模态：怎么玩 -->
-<div class="modal" id="m-howto">
-  <div class="mbox">
-    <h2>怎么玩 · 30 秒看懂</h2>
-    <div class="step"><div class="ic" style="background:var(--orange)">1</div><div class="tx"><h4>这是什么游戏？</h4><p>单人 PvE 潮汐撤离。你是“潮民”，潜入即将被潮水淹没的废弃船坞打捞物资，活着撤到浮标点。不是 5v5，没有敌方玩家，只有 AI 拾荒者与潮汐本身。</p></div></div>
-    <div class="step"><div class="ic" style="background:var(--water)">2</div><div class="tx"><h4>一局多长？</h4><p>约 12 分钟（720 秒硬上限）。潮汐分低潮 / 涨潮 / 满潮三段，满潮后低地被淹，路线会变。超时未撤离 = 失败。</p></div></div>
-    <div class="step"><div class="ic" style="background:var(--danger)">3</div><div class="tx"><h4>死了会怎样？</h4><p>阵亡或潮水淹没你，本局带出的所有战利品全部丢失，但已还清的债务不退。安全撤离才能结算信用点，用来还债、上岸。</p></div></div>
-    <div class="rule">
-      <div><span class="ok">WASD</span> 移动（水越深越慢，没顶只能爬）　<span class="ok">鼠标</span> 瞄准 · <span class="ok">左键</span> 开火 · <span class="ok">R</span> 换弹</div>
-      <div><span class="ok">F</span> 长按拾取战利品　<span class="ok">E</span> 在浮标点长按撤离</div>
-      <div>先还清 <b>债务</b>，攒够 <b>信用点</b>，你就能 <b>上岸</b>。</div>
+<div class="overlay" id="menuScreen">
+  <div class="panel narrow">
+    <div class="title" id="gameTitle"><span class="ch" style="animation-delay:.05s">T</span><span class="ch" style="animation-delay:.13s">I</span><span class="ch" style="animation-delay:.21s">D</span><span class="ch" style="animation-delay:.29s">E</span><span class="ch" style="animation-delay:.37s">L</span><span class="ch" style="animation-delay:.45s">I</span><span class="ch" style="animation-delay:.53s">N</span><span class="ch" style="animation-delay:.61s">E</span><small>潮 线 · BREACH 破 堤</small></div>
+    <p class="lede">
+      5v5 爆破。每回合 <b>100 秒</b>，水位从 0 涨到 <b>3.2 米</b>。<br>
+      进攻方在 <b>A / B 两点</b>之一<b>安放解码器</b>并守住 35 秒；防守方要<b>拆除</b>它。<br>
+      <b>先到 13 分</b>，第 12 回合换边。技能要买，枪也要买 —— 每回合都是一次下注。
+    </p>
+    <div class="tabs" id="modeTabs"></div>
+    <div class="stats" id="profileStats"></div>
+    <div>
+      <button class="btn" id="btnDeploy">部 署</button>
+      <button class="btn ghost" id="btnBase">根据地</button>
     </div>
-    <div class="btnrow"><button class="btn primary" id="btn-howto-close">明 白 了</button></div>
+    <div class="keys">
+      <kbd>W A S D</kbd><span>移动 — 水越深越慢，<b>没顶后只能用副武器（手枪）</b></span>
+      <kbd>鼠标</kbd><span>转动视角（点击画面锁定鼠标 · Esc 退出）　<kbd>左键</kbd>开火　<kbd>R</kbd>换弹　<kbd>Q</kbd>技能</span>
+      <kbd>E</kbd><span>长按安放 / 拆除解码器（站在点位上）</span>
+      <kbd>集装箱</kbd><span>随水位浮起，水涨后会变成通往高地的新路</span>
+    </div>
   </div>
 </div>
 
-<!-- ④ 模态：结算 -->
-<div class="modal" id="m-result">
-  <div class="mbox">
-    <div class="rv-big" id="rv-big">—</div>
-    <div class="rv-line" id="rv-sub">—</div>
-    <div class="rv-line">战利品价值：<b id="rv-value">—</b></div>
-    <div class="rv-line">撤离时潮汐阶段：<b id="rv-phase">—</b></div>
-    <div class="rv-line">击杀：<b id="rv-kills">—</b> · 受到伤害：<b id="rv-dmg">—</b> · 剩余血量：<b id="rv-hp">—</b></div>
-    <div class="unlock" id="rv-unlock" style="display:none"></div>
-    <div class="btnrow">
-      <button class="btn primary" id="btn-again">再 次 撤 离</button>
-      <button class="btn ghost" id="btn-result-back">返 回 干 船 坞</button>
+<div class="overlay hidden" id="loadScreen">
+  <div class="panel">
+    <div class="title" id="loadTitle">配 装</div>
+    <div class="tabs" id="loadTabs"></div>
+    <div class="cols c3">
+      <div class="col"><h3 id="h1">干 员</h3><div class="scroll" id="list1"></div></div>
+      <div class="col"><h3 id="h2">主 武 器</h3><div class="scroll" id="list2"></div></div>
+      <div class="col"><h3 id="h3">护甲 / 弹药</h3><div class="scroll" id="list3"></div></div>
     </div>
+    <div class="stats" id="loadStats"></div>
+    <div>
+      <button class="btn" id="btnReady">进 入 回 合</button>
+      <button class="btn ghost" id="btnBackMenu">返回</button>
+    </div>
+    <p class="hint" id="loadHint"></p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="baseScreen">
+  <div class="panel">
+    <div class="title">根据地<small>SAFEHOUSE · 局外成长</small></div>
+    <p class="lede">用比赛赚的<b>打捞券</b>升级设施。升级永久生效，保存在本机。</p>
+    <div class="fac" id="facList"></div>
+    <div class="stats" id="baseStats"></div>
+    <button class="btn" id="btnBaseBack">返 回</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endScreen">
+  <div class="panel narrow">
+    <div class="verdict" id="verdict">—</div>
+    <div class="sub" id="verdictSub"></div>
+    <div class="stats" id="statList"></div>
+    <div>
+      <button class="btn" id="btnNext">下 一 回 合</button>
+      <button class="btn ghost" id="btnEndMatch">结束比赛</button>
+      <button class="btn ghost" id="btnExport">导出埋点</button>
+    </div>
+    <p class="hint" id="exportHint"></p>
   </div>
 </div>
 
@@ -930,8 +889,7 @@ let W=0,H=0,DPR=1,cellPx=16;
 const VIEW_CELLS = 40;
 let terrainCanvas=null, minimapCanvas=null;
 let screen = "menu";   // menu | loadout | base | end | play
-let last=0, running=false;  // 帧循环时间戳 / 局内运行状态（严格模式下须先声明）
-let gameMode = "salvage";  // breach | salvage
+let gameMode = "breach";  // breach | salvage
 let playerYaw=0, playerPitch=0, pointerLocked=false;
 
 function buildTerrain() {
@@ -1841,7 +1799,7 @@ const keys=new Set();
 let mouseDown=false, mouseX=0, mouseY=0;
 window.addEventListener("keydown", e => {
   if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Tab"].includes(e.code)) e.preventDefault();
-  if (e.code==="KeyQ") { /* 技能槽预留（SALVAGE 暂无主动技能） */ }
+  if (e.code==="KeyQ") { if (gameMode==="breach") useAbility(); else if (gameMode==="surge") SurgeGame.tryStep(); }
   keys.add(e.code);
 });
 window.addEventListener("keyup", e => keys.delete(e.code));
@@ -1869,14 +1827,203 @@ window.addEventListener("contextmenu", e => e.preventDefault());
 window.addEventListener("resize", resize);
 
 /* ---------- 界面 ---------- */
+const $ = id => document.getElementById(id);
+let uiTab = "op";
+
+function renderMenu() {
+  $("profileStats").innerHTML = [
+    ["打捞券", SAVE.tickets], ["比赛场次", SAVE.matches],
+    ["胜场", SAVE.wins], ["当前干员", OPERATORS[loadout.op].name]
+  ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  const tab = (id,label,en) =>
+    '<div class="tab'+(gameMode===id?' sel':'')+'" data-mode="'+id+'"'+
+    (en?'':' style="opacity:.4;cursor:not-allowed"')+'>'+label+'</div>';
+  $("modeTabs").innerHTML =
+    tab('breach','BREACH 破堤 · 5v5 · 先到 13 分',true) +
+    tab('salvage','SALVAGE 打捞 · 单人撤离',true) +
+    tab('surge','SURGE 涌潮 · 12v12 占点',true);
+  $("modeTabs").querySelectorAll(".tab[data-mode]").forEach(el =>
+    el.addEventListener("click", () => {
+      gameMode = el.dataset.mode; AUD.ui(); renderMenu();
+    }));
+  if (FP.ok && typeof FP.setSceneMode === "function") FP.setSceneMode("menu");
+}
+
+function cardHTML(o) { return o; }
+
+function renderLoadout() {
+  const cr = pendingCredits;
+  $("loadTitle").textContent = "第 " + M.round + " 回合 · 配装与买入";
+  $("loadTabs").innerHTML = [["op","干员"],["wp","武器"],["gear","护甲/弹药/改装"]]
+    .map(t => '<div class="tab'+(uiTab===t[0]?" sel":"")+'" data-t="'+t[0]+'">'+t[1]+'</div>').join("");
+  document.querySelectorAll("#loadTabs .tab").forEach(el =>
+    el.addEventListener("click", () => { uiTab = el.dataset.t; renderLoadout(); }));
+
+  const l1=$("list1"), l2=$("list2"), l3=$("list3");
+  if (uiTab==="op") {
+    $("h1").textContent="干 员"; $("h2").textContent="主 武 器"; $("h3").textContent="护甲 / 弹药";
+    l1.innerHTML = OPERATORS.map((o,i)=>
+      '<div class="card'+(i===loadout.op?" sel":"")+'" data-k="op" data-i="'+i+'">'+
+      '<div class="n">'+o.name+'<em>'+o.code+' · '+o.cls+'</em></div>'+
+      '<div class="d"><b>'+o.passive+'</b> — '+o.pdesc+'</div>'+
+      '<div class="d"><b>'+o.skill+'</b> — '+o.sdesc+' · CD '+o.cd+'s</div></div>').join("");
+    l2.innerHTML = WEAPONS.map((w,i)=>{
+      const p=priceOf(w.price);
+      return '<div class="card'+(i===loadout.wp?" sel":"")+(cr>=p?"":" dis")+'" data-k="wp" data-i="'+i+'">'+
+      '<div class="n">'+w.name+'<em>'+w.maker+' · '+w.cat+'</em><span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+w.rpm+' RPM · '+w.dmg+' 伤害 · '+w.mag+' 发'+
+      (w.pellets>1?' · '+w.pellets+' 弹丸':'')+'</div></div>';
+    }).join("");
+    l3.innerHTML = ARMORS.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ar?" sel":"")+(cr>=p?"":" dis")+'" data-k="ar" data-i="'+i+'">'+
+      '<div class="n">'+a.n+'<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+(a.red>0?'减伤 '+Math.round(a.red*100)+'% · 耐久 '+a.dur:'无防护')+'</div></div>';
+    }).join("") + AMMO.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ammo?" sel":"")+(cr>=p?"":" dis")+'" data-k="am" data-i="'+i+'">'+
+      '<div class="n">'+a.n+' 弹<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">穿甲 ×'+a.pen.toFixed(2)+'</div></div>';
+    }).join("") + '<div class="d" style="color:#6f93aa;margin:8px 0 4px">副武器（游泳态唯一可用）</div>' +
+      SIDEARMS.map((s,i)=>{
+      const p=priceOf(s.price);
+      return '<div class="card'+(i===loadout.side?" sel":"")+(cr>=p?"":" dis")+'" data-k="sd" data-i="'+i+'">'+
+      '<div class="n">'+s.name+'<em>'+s.maker+'</em><span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+s.rpm+' RPM · '+s.dmg+' 伤害 · '+s.mag+' 发</div></div>';
+    }).join("");
+  } else if (uiTab==="wp") {
+    $("h1").textContent="武 器"; $("h2").textContent="枪 械 详 情"; $("h3").textContent="改 装 后 效 果";
+    l1.innerHTML = WEAPONS.map((w,i)=>{
+      const p=priceOf(w.price);
+      return '<div class="card'+(i===loadout.wp?" sel":"")+(cr>=p?"":" dis")+'" data-k="wp" data-i="'+i+'">'+
+      '<div class="n">'+w.name+'<em>'+w.cat+'</em><span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+w.maker+' · '+w.rpm+'RPM · '+w.dmg+'dmg</div></div>';
+    }).join("");
+    const w=WEAPONS[loadout.wp];
+    l2.innerHTML = '<div class="card sel"><div class="n">'+w.name+'<em>'+w.maker+'</em></div>'+
+      '<div class="d">类别 '+w.cat+'<br>射速 '+w.rpm+' RPM<br>伤害 '+w.dmg+
+      (w.pellets>1?' × '+w.pellets+' 弹丸':'')+'<br>弹匣 '+w.mag+
+      '<br>基础散布 '+w.spread+'<br>单发热量 '+w.heat+'</div></div>';
+    const e=effWeapon(loadout.wp);
+    l3.innerHTML = '<div class="card sel"><div class="n">装备效果</div><div class="d">'+
+      '伤害 '+e.dmg.toFixed(1)+'<br>散布 '+e.spread.toFixed(4)+
+      '<br>弹匣 '+e.mag+'<br>换弹 '+e.reload.toFixed(2)+'s</div></div>';
+  } else {
+    $("h1").textContent="护甲 / 弹药"; $("h2").textContent="5 槽 改 装"; $("h3").textContent="技 能 升 级";
+    l1.innerHTML = ARMORS.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ar?" sel":"")+(cr>=p?"":" dis")+'" data-k="ar" data-i="'+i+'">'+
+      '<div class="n">'+a.n+'<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+(a.red>0?'减伤 '+Math.round(a.red*100)+'% · 耐久 '+a.dur:'无防护')+'</div></div>';
+    }).join("") + AMMO.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ammo?" sel":"")+(cr>=p?"":" dis")+'" data-k="am" data-i="'+i+'">'+
+      '<div class="n">'+a.n+' 弹<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">穿甲 ×'+a.pen.toFixed(2)+'</div></div>';
+    }).join("");
+    l2.innerHTML = SLOTS.map(s=>{
+      const cur=loadout.att[s.k]||0;
+      return '<div class="card sel"><div class="n">'+s.name+'</div>'+
+        s.opts.map((o,i)=>
+        '<div class="d pick" data-k="att" data-s="'+s.k+'" data-i="'+i+'" style="cursor:pointer;'+
+        'padding:3px 6px;margin:3px 0;border-radius:5px;'+
+        (i===cur?'background:rgba(110,200,255,.22);color:#dff0fb':'')+'">'+
+        (i===cur?'▸ ':'　')+o.n+'</div>').join("")+'</div>';
+    }).join("");
+    const op=OPERATORS[loadout.op];
+    l3.innerHTML = [0,1,2].map(l=>{
+      const c=SKILL_COST[l];
+      const ok = l<=loadout.skill || cr>=c;
+      return '<div class="card'+(l===loadout.skill?" sel":"")+(ok?"":" dis")+'" data-k="sk" data-i="'+l+'">'+
+      '<div class="n">'+op.skill+' Lv'+(l+1)+'<span class="pr">'+(c?('⌾'+c):'免费')+'</span></div>'+
+      '<div class="d">'+op.lv[l]+'</div></div>';
+    }).join("");
+  }
+
+  document.querySelectorAll("#list1 .card,#list2 .card,#list3 .card,#list2 .pick").forEach(c=>{
+    c.addEventListener("click", ev=>{
+      ev.stopPropagation();
+      const k=c.dataset.k; if(!k) return;
+      if (k==="op") loadout.op = +c.dataset.i;
+      else if (k==="wp") { const p=priceOf(WEAPONS[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.wp=+c.dataset.i; }
+      else if (k==="ar") { const p=priceOf(ARMORS[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.ar=+c.dataset.i; }
+      else if (k==="am") { const p=priceOf(AMMO[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.ammo=+c.dataset.i; }
+      else if (k==="sd") { const p=priceOf(SIDEARMS[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.side=+c.dataset.i; }
+      else if (k==="att") loadout.att[c.dataset.s] = +c.dataset.i;
+      else if (k==="sk") { const l=+c.dataset.i;
+        if (l<loadout.skill || pendingCredits<SKILL_COST[l]) return;
+        pendingCredits-=SKILL_COST[l]; loadout.skill=l; }
+      renderLoadout();
+    });
+  });
+
+  $("loadStats").innerHTML = [
+    ["信用点","⌾ "+Math.round(pendingCredits)],
+    ["干员",OPERATORS[loadout.op].name+" · "+OPERATORS[loadout.op].cls],
+    ["主武器",WEAPONS[loadout.wp].name],
+    ["副武器",SIDEARMS[loadout.side].name+"（游泳态唯一可用）"],
+    ["护甲",ARMORS[loadout.ar].n],
+    ["弹药",AMMO[loadout.ammo].n+"（穿甲 ×"+AMMO[loadout.ammo].pen.toFixed(2)+"）"],
+    ["技能","Lv"+(loadout.skill+1)+" — "+OPERATORS[loadout.op].lv[loadout.skill]]
+  ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  $("loadHint").textContent =
+    "每回合起始 ⌾"+ECON.start+" · 击杀 +300（冲锋枪/霰弹 +400）· 胜利 +3250 · 失败 +1400 · "+
+    "安放/拆除 +300 · 技能 Lv2 ⌾600 / Lv3 ⌾1200";
+}
+
+function renderBase() {
+  $("facList").innerHTML = FACILITIES.map(f=>{
+    const lv=facLv(f.k), next = lv<f.max ? f.cost[lv] : null;
+    const bar=Array.from({length:f.max},(_,i)=>'<i class="'+(i<lv?"on":"")+'"></i>').join("");
+    return '<div class="card'+(next&&SAVE.tickets>=next?"":" dis")+'" data-f="'+f.k+'">'+
+      '<div class="n">'+f.n+'<span class="lvbar">'+bar+'</span></div>'+
+      '<div class="d">'+f.d+'</div>'+
+      '<div class="d">'+(next?'<b>升级 ⌾'+next+'</b>':'<b>已满级</b>')+'</div></div>';
+  }).join("");
+  document.querySelectorAll("#facList .card").forEach(c=>c.addEventListener("click",()=>{
+    const f=FACILITIES.find(x=>x.k===c.dataset.f);
+    const lv=facLv(f.k); if (lv>=f.max) return;
+    const cost=f.cost[lv]; if (SAVE.tickets<cost) return;
+    SAVE.tickets-=cost; SAVE.fac[f.k]=lv+1; writeSave(); renderBase();
+  }));
+  $("baseStats").innerHTML = [["打捞券",SAVE.tickets],["比赛场次",SAVE.matches],["胜场",SAVE.wins]]
+    .map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+}
+
+function showRoundEnd(won, reason) {
+  running=false;
+  const P=player();
+  $("verdict").textContent = M.over ? (M.winner===M.playerSide?"比赛胜利":"比赛失利")
+                                    : (won?"回合胜利":"回合失败");
+  $("verdict").className = "verdict "+((M.over ? (M.winner===M.playerSide) : won)?"win":"lose");
+  $("verdictSub").textContent = reason + " · 比分 " + M.scoreAtk + " : " + M.scoreDef;
+  $("statList").innerHTML = [
+    ["击杀",P.kills],["造成伤害",Math.round(P.dmgDealt)],
+    ["剩余生命",Math.max(0,Math.round(P.hp))+" / "+P.maxHp],
+    ["信用点","⌾ "+Math.round(P.credits)],
+    ["技能",OPERATORS[P.opIdx].skill+" Lv"+(loadout.skill+1)],
+    ["进度","第 "+M.round+" 回合 / 先到 "+WIN_SCORE+" 分"]
+  ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  $("btnNext").style.display = M.over ? "none" : "";
+  $("btnEndMatch").textContent = M.over ? "返回主菜单" : "结束比赛";
+  $("exportHint").textContent = "已记录 "+T.events.length+" 条埋点。";
+  $("endScreen").classList.remove("hidden");
+}
+
+/* ---------- 流程 ---------- */
+let last=0, running=false;
 function loop(now) {
   requestAnimationFrame(loop);
   if (!running) {
     if (sceneCanvas.style.display !== "none") sceneCanvas.style.display = "none";
-    ctx.clearRect(0,0,W,H);
+    drawMenuBackground(now/1000);
     return;
   }
-  // ---- 单人打捞模式（SALVAGE，唯一对外入口）----
+  // ---- 单人打捞模式（SALVAGE）----
   if (gameMode === "salvage") {
     const wantScene = using3D ? "block" : "none";
     if (sceneCanvas.style.display !== wantScene) sceneCanvas.style.display = wantScene;
@@ -1886,172 +2033,110 @@ function loop(now) {
     drawSalvage();
     return;
   }
+  // ---- 涌潮模式（SURGE 12v12 占点）----
+  if (gameMode === "surge") {
+    const wantScene = using3D ? "block" : "none";
+    if (sceneCanvas.style.display !== wantScene) sceneCanvas.style.display = wantScene;
+    const dt=Math.min(0.05,(now-last)/1000||0);
+    last=now;
+    updateSurge(dt);
+    drawSurge();
+    return;
+  }
+  // ---- 5v5 破堤模式（BREACH）----
+  if (!g) {
+    if (sceneCanvas.style.display !== "none") sceneCanvas.style.display = "none";
+    drawMenuBackground(now/1000);
+    return;
+  }
+  const wantScene = using3D ? "block" : "none";
+  if (sceneCanvas.style.display !== wantScene) sceneCanvas.style.display = wantScene;
+  const dt=Math.min(0.05,(now-last)/1000||0);
+  last=now;
+  const P=player();
+  if (P.alive) P.aim = using3D ? playerYaw : Math.atan2(mouseX-W/2, -(mouseY-H/2));
+  update(dt);
+  draw();
 }
 
-
-/* ==========================================================================
-   外壳：SALVAGE 单人潮汐撤离 · 门面（07_终审裁定：P0 只许 SALVAGE 一张脸）
-   玩家身份 = 潮民；主页即干船坞；永远显示 债务 / 信用点 / 撤离次数。
-   BREACH / SURGE 整段代码已裁定作废，仅作历史归档保留于 game/legacy/，
-   本文件不再有任何入口指向它们（gameMode 恒为 salvage）。
-   ========================================================================== */
-const $ = id => document.getElementById(id);
-const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
-
-const OPS = [
-  {id:'kestrel',  name:'隼',   role:'突破', passive:'干足', desc:'涉水速度惩罚减半，且不留噪音波纹。', unlock:0},
-  {id:'cauldron', name:'沸釜', role:'突破', passive:'超压', desc:'正面硬刚，对潮生怪物伤害更高。', unlock:2},
-  {id:'lamplight',name:'渔火', role:'控场', passive:'潮感', desc:'近距离持续显示敌人轮廓。', unlock:4},
-  {id:'bulwark',  name:'堤',   role:'控场', passive:'锚定', desc:'静止时更稳，散布更低。', unlock:6},
-  {id:'skimmer',  name:'掠波', role:'机动', passive:'水面张力', desc:'可在水面短冲不沉。', unlock:8},
-  {id:'gannel',   name:'渠',   role:'机动', passive:'绳忆', desc:'移动与换弹更快。', unlock:10},
-  {id:'ledger',   name:'账房', role:'支援', passive:'打捞权', desc:'撤离收益额外加成。', unlock:12},
-  {id:'dredger',  name:'浚',   role:'支援', passive:'回潮', desc:'残血时移速与换弹提升。', unlock:14}
-];
-const GUNS = [
-  {id:'K7',  name:'K-7 海鸦',  cls:'AR', dmg:24, rpm:600, desc:'均衡的打捞步枪，新手友好。', unlock:0},
-  {id:'V31', name:'V-31 锈潮', cls:'AR', dmg:41, rpm:600, desc:'高伤步枪，弹匣较小。', unlock:3},
-  {id:'A3',  name:'A-3 潮涌',  cls:'SG', dmg:18, rpm:70,  desc:'霰弹，近距爆发，射程短。', unlock:6}
-];
-
-const SALVAGE_GUNS = {
-  K7 : {name:'K-7 海鸦',  cls:'AR', dmg:24, rpm:600, cd:60/600, mag:30, range:70},
-  V31: {name:'V-31 锈潮', cls:'AR', dmg:41, rpm:600, cd:60/600, mag:20, range:55},
-  A3 : {name:'A-3 潮涌',  cls:'SG', dmg:18, rpm:70,  cd:60/70,  mag:6,  range:30}
-};
-const SALVAGE_OPS = {
-  kestrel:{name:'隼',  wading:0.5}, cauldron:{name:'沸釜', wading:1},
-  lamplight:{name:'渔火', wading:1}, bulwark:{name:'堤',  wading:1},
-  skimmer:{name:'掠波', wading:1}, gannel:{name:'渠',  wading:1},
-  ledger:{name:'账房', wading:1}, dredger:{name:'浚',  wading:1}
-};
-const SalvageLoadout = {op:'kestrel', gun:'K7'};
-let salvGun = SALVAGE_GUNS.K7;
-let salvOp  = SALVAGE_OPS.kestrel;
-
-const ShellMeta = {
-  key:'tideline_meta_v3', INITIAL_DEBT:12000, data:null,
-  _def(){ return { lastSeen:0 }; },
-  load(){ try{
-      if(typeof localStorage==='undefined'){ this.data=this._def(); return; }
-      this.data=JSON.parse(localStorage.getItem(this.key)||JSON.stringify(this._def()));
-    }catch(e){ this.data=this._def(); } },
-  save(){ try{ if(typeof localStorage!=='undefined') localStorage.setItem(this.key, JSON.stringify(this.data)); }catch(e){} },
-  earned(){ return (typeof Meta!=='undefined' && Meta.data) ? Meta.data.credits : 0; },
-  extracted(){ return (typeof Meta!=='undefined' && Meta.data) ? Meta.data.extracted : 0; },
-  runs(){ return (typeof Meta!=='undefined' && Meta.data) ? Meta.data.runs : 0; },
-  debt(){ return Math.max(0, this.INITIAL_DEBT - this.earned()); },
-  credits(){ return Math.max(0, this.earned() - this.INITIAL_DEBT); },
-  opUnlocked(id){ const o=OPS.find(x=>x.id===id); return o ? this.extracted() >= o.unlock : false; },
-  gunUnlocked(id){ const g=GUNS.find(x=>x.id===id); return g ? this.extracted() >= g.unlock : false; },
-  refreshStatus(){
-    const set=(a,b)=>{ const e=$(a); if(e) e.textContent=b; };
-    set('st-debt','⌾ '+this.debt());
-    set('st-credits','⌾ '+this.credits());
-    set('st-extract',this.extracted()+' 次');
-    set('st-debt2','⌾ '+this.debt());
-    set('st-credits2','⌾ '+this.credits());
-    set('st-extract2',this.extracted()+' 次');
-  }
-};
-
-const bgCanvas = $('bg');
-const bgCtx = bgCanvas.getContext('2d');
-let bgT = 0;
-function bgAnim(){
-  const w = bgCanvas.width = window.innerWidth;
-  const h = bgCanvas.height = window.innerHeight;
-  bgT += 0.016;
-  const g = bgCtx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0,'#070d14'); g.addColorStop(0.5,'#0b1622'); g.addColorStop(1,'#10202f');
-  bgCtx.fillStyle=g; bgCtx.fillRect(0,0,w,h);
-  const mid = h*0.60 + Math.sin(bgT*0.5)*8 + Math.sin(bgT*0.23)*14;
-  const wg = bgCtx.createLinearGradient(0,mid,0,h);
-  wg.addColorStop(0,'rgba(63,111,168,0.55)'); wg.addColorStop(1,'rgba(20,40,60,0.92)');
-  bgCtx.fillStyle=wg; bgCtx.beginPath(); bgCtx.moveTo(0,mid);
-  for(let x=0;x<=w;x+=12){ const y=mid+Math.sin(x*0.012+bgT*1.3)*6+Math.sin(x*0.03+bgT*0.7)*3; bgCtx.lineTo(x,y); }
-  bgCtx.lineTo(w,h); bgCtx.lineTo(0,h); bgCtx.closePath(); bgCtx.fill();
-  bgCtx.strokeStyle='rgba(180,210,235,0.22)'; bgCtx.lineWidth=2; bgCtx.beginPath();
-  for(let x=0;x<=w;x+=12){ const y=mid+Math.sin(x*0.012+bgT*1.3)*6+Math.sin(x*0.03+bgT*0.7)*3; if(x===0)bgCtx.moveTo(x,y); else bgCtx.lineTo(x,y); }
-  bgCtx.stroke();
-  requestAnimationFrame(bgAnim);
+function startRound() {
+  newRound();
+  if (FP.ok) FP.setSceneMode("breach");
+  const P=player();
+  P.credits = pendingCredits;
+  pendingCredits = 0;
+  // newRound() 里玩家用的是 loadout 的干员/主武器/护甲/弹药，此处补副武器
+  P.sideIdx = loadout.side;
+  P.ammoS = SIDEARMS[loadout.side].mag;
+  T.emit("round_start", { round:M.round, side:P.side, op:OPERATORS[loadout.op].id,
+    wp:WEAPONS[loadout.wp].id, side:SIDEARMS[loadout.side].id,
+    ar:loadout.ar, ammo:loadout.ammo, skill:loadout.skill });
+  $("loadScreen").classList.add("hidden");
+  $("endScreen").classList.add("hidden");
+  screen="play"; running=true; last=performance.now();
 }
 
-const MenuShell = {
-  selOp:'kestrel', selGun:'K7', onStart:null,
-  show(id){ $$('.screen').forEach(s=>s.classList.remove('on')); if(id) $(id).classList.add('on'); ShellMeta.refreshStatus(); },
-  hideAll(){ $$('.screen').forEach(s=>s.classList.remove('on')); $$('.modal').forEach(m=>m.classList.remove('on')); },
-  renderDeploy(){
-    const opRow=$('opRow');
-    if(opRow){
-      opRow.innerHTML = OPS.map(o=>{
-        const unlocked=ShellMeta.opUnlocked(o.id); const sel=this.selOp===o.id;
-        const cls='opcard'+(sel?' sel':'')+(unlocked?'':' lock');
-        const lk = unlocked ? '' : '<div class="lk">撤离 '+o.unlock+' 次解锁</div>';
-        return '<div class="'+cls+'" data-op="'+o.id+'">'+
-          '<div class="nm">'+o.name+'<em>'+o.role+'</em></div>'+
-          '<div class="rl">'+o.passive+'</div>'+
-          '<div class="ps">'+o.desc+'</div>'+lk+'</div>';
-      }).join('');
-      $$('.opcard', opRow).forEach(c=>c.addEventListener('click',()=>{
-        const id=c.dataset.op; if(!ShellMeta.opUnlocked(id)) return;
-        this.selOp=id; this.renderDeploy();
-      }));
-    }
-    const gunRow=$('gunRow');
-    if(gunRow){
-      gunRow.innerHTML = GUNS.map(g=>{
-        const unlocked=ShellMeta.gunUnlocked(g.id); const sel=this.selGun===g.id;
-        const cls='guncard'+(sel?' sel':'')+(unlocked?'':' lock');
-        const lk = unlocked ? '' : '（撤离 '+g.unlock+' 次解锁）';
-        return '<div class="'+cls+'" data-gun="'+g.id+'">'+
-          '<div class="nm">'+g.name+' <em>'+g.cls+'</em></div>'+
-          '<div class="st">伤害 <b>'+g.dmg+'</b> · 射速 <b>'+g.rpm+'</b> '+lk+'</div>'+
-          '<div class="ds">'+g.desc+'</div></div>';
-      }).join('');
-      $$('.guncard', gunRow).forEach(c=>c.addEventListener('click',()=>{
-        const id=c.dataset.gun; if(!ShellMeta.gunUnlocked(id)) return;
-        this.selGun=id; this.renderDeploy();
-      }));
-    }
-  },
-  showResult(r){
-    r = r || {extracted:false,reason:'timeout',value:0,t:0,phase:'—',kills:0,damageTaken:0,hpLeft:0};
-    const big=$('rv-big');
-    big.textContent = r.extracted ? '撤离成功' : (r.reason==='killed'?'你阵亡了':'潮水吞没了你');
-    big.className = 'rv-big '+(r.extracted?'ok':'bad');
-    $('rv-sub').textContent = (r.extracted?'带着战利品安全撤离':'任务失败')+' · 用时 '+Math.round(r.t)+'s';
-    $('rv-value').textContent = '⌾ '+r.value;
-    $('rv-phase').textContent = r.phase || '—';
-    $('rv-kills').textContent = r.kills;
-    $('rv-dmg').textContent = Math.round(r.damageTaken);
-    $('rv-hp').textContent = Math.round(r.hpLeft);
-    const prev = ShellMeta.data ? ShellMeta.data.lastSeen : 0;
-    const nowE = ShellMeta.extracted();
-    const newly=[];
-    OPS.forEach(o=>{ if(o.unlock>prev && o.unlock<=nowE) newly.push('干员「'+o.name+'」'); });
-    GUNS.forEach(g=>{ if(g.unlock>prev && g.unlock<=nowE) newly.push('武器「'+g.name+'」'); });
-    const ul=$('rv-unlock');
-    if(newly.length){ ul.style.display='block'; ul.textContent='★ 新解锁：'+newly.join('、'); }
-    else ul.style.display='none';
-    ShellMeta.data.lastSeen = nowE; ShellMeta.save();
-    ShellMeta.refreshStatus();
-    this.hideAll(); $('m-result').classList.add('on');
-  },
-  init(){
-    $('btn-start').addEventListener('click', ()=>{ AUD.resume(); this.renderDeploy(); this.show('scr-deploy'); });
-    $('btn-howto').addEventListener('click', ()=>{ $('m-howto').classList.add('on'); });
-    $('btn-howto-close').addEventListener('click', ()=>{ $('m-howto').classList.remove('on'); });
-    $('btn-deploy-back').addEventListener('click', ()=>{ this.show('scr-title'); });
-    $('btn-launch').addEventListener('click', ()=>{ AUD.resume(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
-    $('btn-again').addEventListener('click', ()=>{ this.hideAll(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
-    $('btn-result-back').addEventListener('click', ()=>{ this.hideAll(); this.show('scr-title'); });
-    this.onStart = cfg => startSalvage(cfg);
-    bgAnim();
-    this.show('scr-title');
+function nextRound() {
+  M.round++;
+  if (M.round === SWITCH_ROUND && !M.swapped) {
+    M.swapped = true;
+    M.playerSide = M.playerSide === "atk" ? "def" : "atk";
   }
-};
+  pendingCredits = player() ? player().credits : ECON.start;
+  $("endScreen").classList.add("hidden");
+  $("loadScreen").classList.remove("hidden");
+  renderLoadout();
+}
 
+$("btnDeploy").addEventListener("click", ()=>{
+  AUD.resume();
+  if (gameMode === "salvage") { startSalvage(); return; }
+  if (gameMode === "surge") { startSurge(); return; }
+  newMatch();
+  T.session = String(Date.now())+"_"+Math.floor(Math.random()*99999);
+  T.events = [];
+  T.emit("session_start", { op:OPERATORS[loadout.op].id });
+  $("menuScreen").classList.add("hidden");
+  $("loadScreen").classList.remove("hidden");
+  renderLoadout();
+});
+$("btnBackMenu").addEventListener("click", ()=>{
+  $("loadScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  renderMenu();
+});
+$("btnBase").addEventListener("click", ()=>{
+  $("menuScreen").classList.add("hidden");
+  $("baseScreen").classList.remove("hidden");
+  renderBase();
+});
+$("btnBaseBack").addEventListener("click", ()=>{
+  $("baseScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  renderMenu();
+});
+$("btnReady").addEventListener("click", startRound);
+$("btnNext").addEventListener("click", nextRound);
+$("btnEndMatch").addEventListener("click", ()=>{
+  $("endScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  renderMenu();
+});
+$("btnExport").addEventListener("click", ()=>{
+  const blob=new Blob([T.toJSONL()],{type:"application/jsonl"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="tideline_"+T.session+".jsonl";
+  a.click(); URL.revokeObjectURL(a.href);
+  $("exportHint").textContent="已导出 tideline_"+T.session+".jsonl";
+});
+
+loadSave();
+buildTerrain();
+resize();
+FP.init();                 // 尝试建立 WebGL 第一人称场景；失败则回退俯视 2D
+renderMenu();
+requestAnimationFrame(loop);
 
 /* ==========================================================================
    SALVAGE 单人潮汐撤离模式（对齐 05_重定位 / 06_单人设定集 / 07_终审裁定）
@@ -2364,19 +2449,17 @@ class TideWarden{
 // ---- 玩家（单人模式）----
 const PlayerMission = {
   pos:{x:-27,z:0}, hp:100, dead:false,
-  ammo:240, mag:30, lootT:0, lootTarget:null, kills:0, dmgTaken:0,
+  ammo:240, mag:30, lootT:0, lootTarget:null,
   reset(){ this.pos={x:-27,z:0}; this.hp=100; this.dead=false;
-    this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null; this.kills=0; this.dmgTaken=0; },
+    this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null; },
   speed(){
     const ws=WaterState.update(MapHeight.depthAt(this.pos.x,this.pos.z));
     const over=MapHeight.depthAt(this.pos.x,this.pos.z)>1.2
       ? BackPack.wadingPenalty : BackPack.penalty;
-    const opWade = (salvOp && salvOp.wading!=null) ? salvOp.wading : 1;
-    return 5.2*ws.move*(1-over*opWade);
+    return 5.2*ws.move*(1-over);
   },
   damage(v,src){
     if(this.dead) return;
-    this.dmgTaken += v;
     this.hp-=v; AUD.hurt();
     if(this.hp<=0){ this.hp=0; this.dead=true; Mission.end(false,'killed'); }
   },
@@ -2417,10 +2500,7 @@ const Mission = {
   },
   end(extracted,reason){
     this.state='ENDED';
-    const ph = TideMission.PHASES.find(p=>TideMission.t>=p.t0 && TideMission.t<p.t1);
-    const phaseName = ph ? ph.name : 'High';
-    this.result={extracted,reason,value:BackPack.value,t:TideMission.t,
-      phase:phaseName, kills:PlayerMission.kills, damageTaken:PlayerMission.dmgTaken, hpLeft:PlayerMission.hp};
+    this.result={extracted,reason,value:BackPack.value,t:TideMission.t};
     Meta.commit(extracted); Telemetry.log('mission_end',this.result);
   }
 };
@@ -2447,12 +2527,8 @@ let salvMuzzle=0, salvCd=0, salvReloadT=0, salvWarn="", salvWarnT=0, stepAccum=0
 
 function salvageResetView(){ playerYaw=0; playerPitch=0; }
 
-function startSalvage(cfg){
+function startSalvage(){
   gameMode="salvage";
-  SalvageLoadout.op = (cfg && cfg.op) ? cfg.op : 'kestrel';
-  SalvageLoadout.gun = (cfg && cfg.gun) ? cfg.gun : 'K7';
-  salvGun = SALVAGE_GUNS[SalvageLoadout.gun] || SALVAGE_GUNS.K7;
-  salvOp = SALVAGE_OPS[SalvageLoadout.op] || SALVAGE_OPS.kestrel;
   AUD.resume();
   Meta.load();
   Mission.start();
@@ -2461,20 +2537,22 @@ function startSalvage(cfg){
   salvMuzzle=0; salvCd=0; salvReloadT=0; salvWarn=""; salvWarnT=0; stepAccum=0;
   TideMission.onWarning = (name)=>{ salvWarn="⚠ 潮汐预警："+name+" 段即将到来"; salvWarnT=4; AUD.warn(); };
   TideMission.onPhaseChange = (name)=>{ salvWarn="潮汐进入 "+name+" 段"; salvWarnT=3; };
-  MenuShell.hideAll();
+  $("menuScreen").classList.add("hidden");
+  $("loadScreen").classList.add("hidden");
+  $("endScreen").classList.add("hidden");
   screen="play"; running=true; last=performance.now();
 }
 
 function reloadSalvage(){
   const P=PlayerMission;
-  if(P.mag>=salvGun.mag || P.ammo<=0 || salvReloadT>0) return;
+  if(P.mag>=SALVAGE_WP.mag || P.ammo<=0 || salvReloadT>0) return;
   salvReloadT=1.6;
 }
 
 function fireSalvage(){
   const P=PlayerMission; P.mag--; salvMuzzle=0.06; AUD.gun('AR');
   const fx=Math.sin(playerYaw), fz=-Math.cos(playerYaw);
-  const range=salvGun.range, thr=Math.cos(0.14);
+  const range=SALVAGE_WP.range, thr=Math.cos(0.14);
   const ents=[];
   for(const s of Mission.entities.scavs) if(s.state!=='DEAD') ents.push(s);
   for(const d of Mission.entities.drones) if(d.state!=='DEAD') ents.push(d);
@@ -2486,8 +2564,8 @@ function fireSalvage(){
     const dot=(dx*fx+dz*fz)/(d||1);
     if(dot>=thr && d<bestD){ best=e; bestD=d; }
   }
-  if(best){ best.damage(salvGun.dmg); AUD.hitmark();
-    if(best.state==='DEAD'){ AUD.kill(); PlayerMission.kills++; } }
+  if(best){ best.damage(SALVAGE_WP.dmg); AUD.hitmark();
+    if(best.state==='DEAD') AUD.kill(); }
 }
 
 function updateSalvage(dt){
@@ -2510,9 +2588,9 @@ function updateSalvage(dt){
   // 换弹 / 开火
   if(keys.has("KeyR")) reloadSalvage();
   if(salvReloadT>0){ salvReloadT-=dt; if(salvReloadT<=0){
-    const need=salvGun.mag-P.mag, take=Math.min(need,P.ammo);
+    const need=SALVAGE_WP.mag-P.mag, take=Math.min(need,P.ammo);
     P.mag+=take; P.ammo-=take; } }
-  if(mouseDown && P.mag>0 && salvCd<=0){ fireSalvage(); salvCd=salvGun.cd; }
+  if(mouseDown && P.mag>0 && salvCd<=0){ fireSalvage(); salvCd=SALVAGE_WP.cd; }
   if(salvCd>0) salvCd-=dt;
   if(salvMuzzle>0) salvMuzzle-=dt;
   // 拾取（按住 F）
@@ -2524,8 +2602,21 @@ function updateSalvage(dt){
 
 function showSalvageEnd(){
   running=false;
+  const r=Mission.result||{extracted:false,reason:'timeout',value:0,t:0};
+  $("verdict").textContent = r.extracted ? "撤离成功" : (r.reason==='killed'?"你阵亡了":"潮水吞没了你");
+  $("verdict").className = "verdict "+(r.extracted?"win":"lose");
+  $("verdictSub").textContent = (r.extracted?"带着战利品安全撤离":"任务失败")+" · 用时 "+r.t.toFixed(0)+"s";
+  $("statList").innerHTML = [
+    ["战利品价值","⌾ "+r.value],
+    ["携带重量", BackPack.kg.toFixed(1)+" kg"],
+    ["结局", r.reason],
+    ["累计信用", "⌾ "+(Meta.data?Meta.data.credits:0)],
+    ["撤离次数", (Meta.data?Meta.data.extracted:0)]
+  ].map(x=>"<div><span>"+x[0]+"</span><span>"+x[1]+"</span></div>").join("");
+  $("btnNext").style.display="none";
+  $("btnEndMatch").textContent="返回主菜单";
+  $("endScreen").classList.remove("hidden");
   if(FP.ok) FP.setSceneMode("menu");
-  MenuShell.showResult(Mission.result);
 }
 
 function drawSalvage(){
@@ -3015,13 +3106,6 @@ FP.renderSurge = function(t){
   if(this.muzzleLight) this.muzzleLight.intensity=surgeMuzzle>0?7:0;
   this.renderer.render(this.scene,this.camera);
 };
-Meta.load();
-ShellMeta.load();
-buildTerrain();
-resize();
-FP.init();
-MenuShell.init();
-requestAnimationFrame(loop);
 </script>
 </body>
 </html>

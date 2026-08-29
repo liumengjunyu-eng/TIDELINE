@@ -1,10 +1,12 @@
 // tools/test_surge_headless.js
-// SURGE 涌潮模式（12v12 占点）的无浏览器冒烟测试。
+// SURGE 涌潮模式（12v12 占点）的无浏览器冒烟测试（针对归档快照）。
 // 复用与 test_salvage_headless.js 相同的 vm + DOM 桩，驱动 SURGE 仿真层并断言。
+// 注：SURGE 与 BREACH 一并被裁定为作废旧案，从产品入口移除并归档；
+//     其完整代码保留在 game/legacy/index_full_2026-08-29_pre_restructure.html 供回归与考古。
 // 运行： cd TIDELINE/game && node tools/test_surge_headless.js
 
 const fs = require("fs"), path = require("path"), vm = require("vm");
-const HTML = path.join(__dirname, "..", "..", "web", "index.html");
+const HTML = path.join(__dirname, "..", "legacy", "index_full_2026-08-29_pre_restructure.html");
 const SRC = fs.readFileSync(HTML, "utf8").match(/<script>([\s\S]*?)<\/script>/)[1];
 
 /* ---------- 最小 DOM 桩 ---------- */

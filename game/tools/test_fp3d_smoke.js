@@ -143,18 +143,8 @@ try {
 check("SALVAGE: buildSalvage 建立 salvGroup 场景", ev("FP.salvGroup!==null"));
 check("SALVAGE: renderSalvage 30 帧无异常", salvErr === null, salvErr ? salvErr.message : "30 帧无报错");
 
-// ---- SURGE 3D 渲染路径（buildSurge / renderSurge）----
-let surgeErr = null;
-try {
-  run("gameMode='surge'; startSurge();");
-  for (let f=0; f<30; f++) {
-    run("SurgeGame.update(1/60); FP.renderSurge(" + (f/60) + ");");
-  }
-} catch (e) { surgeErr = e; }
-check("SURGE: buildSurge 建立 surgeGroup 场景", ev("FP.surgeGroup!==null"));
-check("SURGE: renderSurge 30 帧无异常", surgeErr === null, surgeErr ? surgeErr.message : "30 帧无报错");
-check("SURGE: 23 个 bot 渲染对象已建", ev("FP.surgeBotPool && FP.surgeBotPool.length===23"),
-  "pool=" + ev("FP.surgeBotPool ? FP.surgeBotPool.length : -1"));
+// 注：BREACH / SURGE 已裁定为作废旧案，整段代码归档于 game/legacy/，
+// 不再作为产品门面或入口。本冒烟测试只验证 SALVAGE 这一张脸的 3D 渲染路径。
 
 console.log("\n"+"=".repeat(66));
 console.log(`结果：${pass} 项 PASS / ${fail} 项 FAIL`);
