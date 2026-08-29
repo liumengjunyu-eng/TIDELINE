@@ -889,6 +889,7 @@ let W=0,H=0,DPR=1,cellPx=16;
 const VIEW_CELLS = 40;
 let terrainCanvas=null, minimapCanvas=null;
 let screen = "menu";   // menu | loadout | base | end | play
+let gameMode = "breach";  // breach | salvage
 let playerYaw=0, playerPitch=0, pointerLocked=false;
 
 function buildTerrain() {
@@ -1798,7 +1799,7 @@ const keys=new Set();
 let mouseDown=false, mouseX=0, mouseY=0;
 window.addEventListener("keydown", e => {
   if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Tab"].includes(e.code)) e.preventDefault();
-  if (e.code==="KeyQ") useAbility();
+  if (e.code==="KeyQ" && gameMode==="breach") useAbility();
   keys.add(e.code);
 });
 window.addEventListener("keyup", e => keys.delete(e.code));
@@ -1834,10 +1835,18 @@ function renderMenu() {
     ["打捞券", SAVE.tickets], ["比赛场次", SAVE.matches],
     ["胜场", SAVE.wins], ["当前干员", OPERATORS[loadout.op].name]
   ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  const tab = (id,label,en) =>
+    '<div class="tab'+(gameMode===id?' sel':'')+'" data-mode="'+id+'"'+
+    (en?'':' style="opacity:.4;cursor:not-allowed"')+'>'+label+'</div>';
   $("modeTabs").innerHTML =
-    '<div class="tab sel">BREACH 破堤 · 5v5 · 先到 13 分</div>' +
-    '<div class="tab" style="opacity:.4;cursor:not-allowed">SALVAGE 打捞 · 规划中</div>' +
+    tab('breach','BREACH 破堤 · 5v5 · 先到 13 分',true) +
+    tab('salvage','SALVAGE 打捞 · 单人撤离',true) +
     '<div class="tab" style="opacity:.4;cursor:not-allowed">SURGE 涌潮 · 规划中</div>';
+  $("modeTabs").querySelectorAll(".tab[data-mode]").forEach(el =>
+    el.addEventListener("click", () => {
+      gameMode = el.dataset.mode; AUD.ui(); renderMenu();
+    }));
+  if (FP.ok && typeof FP.setSceneMode === "function") FP.setSceneMode("menu");
 }
 
 function cardHTML(o) { return o; }
@@ -2009,7 +2018,23 @@ function showRoundEnd(won, reason) {
 let last=0, running=false;
 function loop(now) {
   requestAnimationFrame(loop);
-  if (!running || !g) {
+  if (!running) {
+    if (sceneCanvas.style.display !== "none") sceneCanvas.style.display = "none";
+    drawMenuBackground(now/1000);
+    return;
+  }
+  // ---- 单人打捞模式（SALVAGE）----
+  if (gameMode === "salvage") {
+    const wantScene = using3D ? "block" : "none";
+    if (sceneCanvas.style.display !== wantScene) sceneCanvas.style.display = wantScene;
+    const dt=Math.min(0.05,(now-last)/1000||0);
+    last=now;
+    if (Mission.state === "RUNNING") updateSalvage(dt);
+    drawSalvage();
+    return;
+  }
+  // ---- 5v5 破堤模式（BREACH）----
+  if (!g) {
     if (sceneCanvas.style.display !== "none") sceneCanvas.style.display = "none";
     drawMenuBackground(now/1000);
     return;
@@ -2026,6 +2051,7 @@ function loop(now) {
 
 function startRound() {
   newRound();
+  if (FP.ok) FP.setSceneMode("breach");
   const P=player();
   P.credits = pendingCredits;
   pendingCredits = 0;
@@ -2053,6 +2079,8 @@ function nextRound() {
 }
 
 $("btnDeploy").addEventListener("click", ()=>{
+  AUD.resume();
+  if (gameMode === "salvage") { startSalvage(); return; }
   newMatch();
   T.session = String(Date.now())+"_"+Math.floor(Math.random()*99999);
   T.events = [];
@@ -2098,6 +2126,651 @@ resize();
 FP.init();                 // 尝试建立 WebGL 第一人称场景；失败则回退俯视 2D
 renderMenu();
 requestAnimationFrame(loop);
+
+/* ==========================================================================
+   SALVAGE 单人潮汐撤离模式（对齐 05_重定位 / 06_单人设定集 / 07_终审裁定）
+   铁律：水位只读，唯一写入方 = TideMission.tick()。
+   与 BREACH 共用同一套 Three.js 3D / 俯视 2D 渲染管线、干员/枪械/经济系统、音频系统。
+   视角无关：3D 或 2D 均读此层数据。
+   注意：本块的工具函数名与 index.html 既有代码不冲突（既有 `rnd` 为种子化 PRNG，
+   此处改用 `srnd` 避免重复 const 声明导致整文件崩溃）。
+   ========================================================================== */
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp  = (a,b,t)=>a+(b-a)*t;
+const smoothstep = t=>(t=clamp(t,0,1),t*t*(3-2*t));
+const dist = (a,b)=>Math.hypot(a.x-b.x, a.z-b.z);
+const srnd  = (a,b)=>a+Math.random()*(b-a);
+
+// ---- 埋点（H1'/H2'/H3' 远程验证，07文档 §04）----
+const Telemetry = {
+  events: [],
+  log(type, data){
+    this.events.push(Object.assign({ t: TideMission.t, type }, data||{}));
+  }
+};
+
+// ---- 潮汐任务控制器（唯一水位写入方）----
+const TideMission = {
+  PHASES: [
+    { name:'Low',    t0:0,   t1:180, l0:0.00, l1:0.15 },
+    { name:'Rising', t0:180, t1:420, l0:0.15, l1:1.50 },
+    { name:'High',   t0:420, t1:600, l0:1.50, l1:3.20 },
+  ],
+  HARD_CAP: 720,
+  WARNING_LEAD: 15,
+  level:0, phase:'Low', t:0, running:false,
+  onPhaseChange:null, onWarning:null, _warned:{},
+  start(){ this.level=0; this.phase='Low'; this.t=0; this.running=true; this._warned={}; },
+  tick(dt){
+    if(!this.running) return;
+    this.t += dt;
+    for(const p of this.PHASES){
+      if(!this._warned[p.name] && p.t0>0 && this.t >= p.t0-this.WARNING_LEAD){
+        this._warned[p.name]=true;
+        if(this.onWarning) this.onWarning(p.name);
+      }
+    }
+    const ph = this.PHASES.find(p=>this.t>=p.t0 && this.t<p.t1);
+    if(ph){
+      if(this.phase!==ph.name){
+        this.phase=ph.name;
+        Telemetry.log('phase_change',{phase:ph.name});
+        if(this.onPhaseChange) this.onPhaseChange(ph.name);
+      }
+      this.level = lerp(ph.l0, ph.l1, (this.t-ph.t0)/(ph.t1-ph.t0));
+    } else this.level = 3.20;
+  },
+  project(sec){
+    const t2=this.t+sec, ph=this.PHASES.find(p=>t2>=p.t0&&t2<p.t1);
+    return ph ? lerp(ph.l0,ph.l1,(t2-ph.t0)/(ph.t1-ph.t0)) : 3.20;
+  },
+  remaining(){ return Math.max(0, this.HARD_CAP-this.t); }
+};
+
+// ---- 地图标高（02文档 §2.2）----
+const MapHeight = {
+  W:60, D:40, CELL:2, grid:null, nx:0, nz:0,
+  init(){
+    this.nx=this.W/this.CELL; this.nz=this.D/this.CELL;
+    this.grid=new Float32Array(this.nx*this.nz);
+    for(let j=0;j<this.nz;j++) for(let i=0;i<this.nx;i++){
+      const x=(i+.5)*this.CELL-this.W/2, z=(j+.5)*this.CELL-this.D/2;
+      this.grid[j*this.nx+i]=this.zone(x,z);
+    }
+  },
+  zone(x,z){
+    if(x>=  8&&x<=26&&z>=  6&&z<=18) return 4.0;
+    if(x>=-26&&x<=-8&&z>=-18&&z<=-8) return 3.9;
+    if(x>=  4&&x<=28&&z>=  2&&z<= 8) return 1.7;
+    if(z>= 8&&z<=12)                 return 1.8;
+    if(z>=-6&&z<=-2)                 return 1.0;
+    if(x>=-8&&x<= 8)                 return 0.0;
+    if(x>=  4&&x<=24&&z>=-18&&z<=-6) return 0.2;
+    return 2.2;
+  },
+  sample(x,z){
+    const gx=clamp((x+this.W/2)/this.CELL-.5,0,this.nx-1);
+    const gz=clamp((z+this.D/2)/this.CELL-.5,0,this.nz-1);
+    const i=Math.floor(gx),j=Math.floor(gz);
+    const fx=smoothstep(gx-i),fz=smoothstep(gz-j);
+    const i2=Math.min(i+1,this.nx-1),j2=Math.min(j+1,this.nz-1);
+    const g=(a,b)=>this.grid[b*this.nx+a];
+    return lerp(lerp(g(i,j),g(i2,j),fx), lerp(g(i,j2),g(i2,j2),fx), fz);
+  },
+  depthAt(x,z){ return Math.max(0, TideMission.level-this.sample(x,z)); },
+  nearestHigh(pos,minElev){
+    let best=null,bd=1e9;
+    for(let j=0;j<this.nz;j++) for(let i=0;i<this.nx;i++){
+      if(this.grid[j*this.nx+i]<minElev) continue;
+      const p={x:(i+.5)*this.CELL-this.W/2, z:(j+.5)*this.CELL-this.D/2};
+      const d=dist(pos,p); if(d<bd){bd=d;best=p;}
+    }
+    return best;
+  },
+  randomLowPoint(maxElev){
+    for(let k=0;k<50;k++){
+      const p={x:srnd(-26,24), z:srnd(-18,16)};
+      if(this.sample(p.x,p.z)<=maxElev) return p;
+    }
+    return {x:0,z:0};
+  }
+};
+
+// ---- 四档涉水状态机（含滞后区间）----
+const WaterState = {
+  STATES:[
+    {name:'Dry',     move:1.00, turn:1.00, spread:3.2},
+    {name:'Shallow', move:0.85, turn:0.85, spread:3.6},
+    {name:'Wading',  move:0.55, turn:0.70, spread:4.5},
+    {name:'Swimming',move:0.40, turn:0.60, spread:0.0},
+  ],
+  ENTER:[0.30,1.20,2.00], EXIT:[0.20,1.10,1.90],
+  cur:0,
+  update(depth){
+    if(this.cur<3 && depth>=this.ENTER[this.cur]) this.cur++;
+    else if(this.cur>0 && depth<=this.EXIT[this.cur-1]) this.cur--;
+    return this.STATES[this.cur];
+  }
+};
+
+// ---- 战利品系统 ----
+const LootSystem = {
+  RARITY:[
+    {name:'普通', p:.60, mult:1,  v:[100,300]},
+    {name:'稀有', p:.25, mult:3,  v:[600,900]},
+    {name:'史诗', p:.12, mult:10, v:[2000,3000]},
+    {name:'传说', p:.03, mult:50, v:[8000,12000]},
+  ],
+  items:[],
+  spawn(){
+    this.items=[];
+    for(let n=0;n<25;n++){
+      const r=Math.random();
+      const t=r<.03?3:r<.15?2:r<.40?1:0;
+      const pos = t===3 ? MapHeight.randomLowPoint(0.3)
+                : t===2 ? MapHeight.randomLowPoint(1.2)
+                : { x:srnd(-27,27), z:srnd(-19,19) };
+      const R=this.RARITY[t];
+      this.items.push({ pos, rarity:t, name:R.name,
+        value:Math.round(srnd(R.v[0],R.v[1])), kg:srnd(0.5,1.5+t*2), taken:false });
+    }
+  },
+  drop(pos,value){
+    this.items.push({pos:{x:pos.x,z:pos.z},rarity:0,name:'战利品',value,kg:1,taken:false});
+  },
+  nearestLoot(pos,r){ return this.items.find(i=>!i.taken&&dist(i.pos,pos)<r); }
+};
+
+// ---- 背包与重量 ----
+const BackPack = {
+  SLOTS:12, SOFT_KG:20, items:[],
+  get value(){ return this.items.reduce((s,i)=>s+i.value,0); },
+  get kg(){ return this.items.reduce((s,i)=>s+i.kg,0); },
+  get penalty(){ return Math.min(.15, Math.floor(Math.max(0,this.kg-this.SOFT_KG)/5)*.03); },
+  get wadingPenalty(){ return this.penalty*2; },
+  canTake(){ return this.items.length<this.SLOTS; },
+  take(item){ if(this.canTake()){ item.taken=true; this.items.push(item);
+    Telemetry.log('loot',{value:item.value,total:this.value}); } }
+};
+
+// ---- 撤离系统 ----
+const Extraction = {
+  CHANNEL:8, channelT:0,
+  points:[
+    {id:'船坞闸门', pos:{x:-27,z: 0}, elev:2.2, closeAt:300},
+    {id:'南路码头', pos:{x: 26,z:-4}, elev:1.0, closeAt:Infinity},
+    {id:'北路平台', pos:{x:-2,z:10}, elev:1.8, closeAt:450},
+    {id:'高点·最终', pos:{x:17,z:12}, elev:4.0, closeAt:Infinity},
+  ],
+  active(){ return this.points.filter(p=>
+    TideMission.t<p.closeAt && p.elev>TideMission.level+0.2); },
+  update(dt,player){
+    const z=this.active().find(p=>dist(player.pos,p.pos)<2.5);
+    if(z && !player.dead){
+      this.channelT+=dt;
+      if(this.channelT>=this.CHANNEL) return 'EXTRACTED';
+    } else this.channelT=Math.max(0,this.channelT-dt*2);
+    return null;
+  },
+  reset(){ this.channelT=0; }
+};
+
+// ---- 拾荒者 ----
+class Scavenger{
+  constructor(pos){
+    this.pos={x:pos.x,z:pos.z}; this.home={x:pos.x,z:pos.z};
+    this.hp=150; this.speed=4.2; this.state='PATROL';
+    this.target=null; this.fireCd=0; this.drownT=0; this.wanderT=0;
+    this.lootValue=Math.round(srnd(80,250));
+  }
+  update(dt,player){
+    if(this.state==='DEAD') return;
+    const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
+    // ★ 潮汐响应：预判30s后水位，提前撤往高地（命门，不可砍）
+    if(this.state!=='COMBAT'){
+      const fut=TideMission.project(30);
+      if(MapHeight.sample(this.pos.x,this.pos.z)<fut-0.3){
+        if(this.state!=='TO_HIGH'){
+          this.state='TO_HIGH';
+          this.target=MapHeight.nearestHigh(this.pos,fut+0.5);
+          Telemetry.log('scav_to_high',{});
+        }
+      }
+    }
+    const d=dist(this.pos,player.pos);
+    if(!player.dead && d<26) this.state='COMBAT';
+    else if(this.state==='COMBAT'){
+      this.state='TO_HIGH';
+      this.target=MapHeight.nearestHigh(this.pos,TideMission.level+0.8);
+    }
+    if(depth>2.4){ this.drownT+=dt; if(this.drownT>8) return this.die(); }
+    else this.drownT=0;
+
+    if(this.state==='PATROL'){
+      this.wanderT-=dt;
+      if(this.wanderT<=0){ this.wanderT=srnd(1,3);
+        this.target={x:this.home.x+srnd(-6,6), z:this.home.z+srnd(-6,6)}; }
+      this.moveTo(dt,this.target,this.speed*0.5);
+    } else if(this.state==='TO_HIGH') this.moveTo(dt,this.target,this.speed);
+    else if(this.state==='COMBAT'){
+      this.fireCd-=dt;
+      if(this.fireCd<=0){ this.fireCd=0.1;
+        const hitP=clamp(0.55-d*0.012,0.08,0.55);
+        if(Math.random()<hitP) player.damage(srnd(12,18),'scavenger');
+      }
+    }
+  }
+  moveTo(dt,t,sp){
+    if(!t) return;
+    const dx=t.x-this.pos.x, dz=t.z-this.pos.z, L=Math.hypot(dx,dz);
+    if(L<0.5) return;
+    const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
+    const m=depth>2.0?0.4:depth>1.2?0.55:depth>0.3?0.85:1;
+    this.pos.x+=dx/L*sp*m*dt; this.pos.z+=dz/L*sp*m*dt;
+  }
+  damage(v){ this.hp-=v; if(this.hp<=0) this.die(); }
+  die(){ if(this.state==='DEAD') return; this.state='DEAD';
+    LootSystem.drop(this.pos,this.lootValue); Telemetry.log('scav_dead',{}); }
+}
+
+// ---- 打捞无人机 ----
+class SalvageDrone{
+  constructor(pos){
+    this.pos={x:pos.x,z:pos.z}; this.home={x:pos.x,z:pos.z};
+    this.hp=60; this.state='PATROL'; this.fireCd=0; this.wT=0; this.called=false; this.tgt=null;
+  }
+  update(dt,player,scavs){
+    const high=TideMission.phase==='High';
+    const sp=5.0*(high?1.5:1), range=high?40:26;
+    const d=dist(this.pos,player.pos);
+    if(!player.dead && d<range){
+      if(!this.called){ this.called=true;
+        Telemetry.log('drone_call',{});
+        scavs.forEach(s=>{ if(s.state!=='DEAD'&&dist(s.pos,this.pos)<30) s.state='COMBAT'; });
+      }
+      this.fireCd-=dt;
+      if(this.fireCd<=0){ this.fireCd=0.15;
+        if(Math.random()<clamp(0.5-d*0.008,0.1,0.5))
+          player.damage(srnd(8,14)*(high?1.5:1),'drone');
+      }
+      const dx=player.pos.x-this.pos.x,dz=player.pos.z-this.pos.z,L=Math.hypot(dx,dz);
+      if(L>12){ this.pos.x+=dx/L*sp*dt; this.pos.z+=dz/L*sp*dt; }
+    } else {
+      this.called=false; this.wT-=dt;
+      if(this.wT<=0){ this.wT=srnd(2,4);
+        this.tgt={x:this.home.x+srnd(-15,15),z:this.home.z+srnd(-15,15)}; }
+      if(this.tgt){ const dx=this.tgt.x-this.pos.x,dz=this.tgt.z-this.pos.z;
+        const L=Math.hypot(dx,dz);
+        if(L>1){ this.pos.x+=dx/L*sp*dt; this.pos.z+=dz/L*sp*dt; } }
+    }
+  }
+  damage(v){ this.hp-=v; if(this.hp<=0){ this.state='DEAD';
+    LootSystem.drop(this.pos,300); Telemetry.log('drone_down',{}); } }
+}
+
+// ---- 潮汐守望者 ----
+class TideWarden{
+  constructor(pos){
+    this.pos={x:pos.x,z:pos.z}; this.hpMax=this.hp=300;
+    this.speed=2.4; this.state='GUARD'; this.fireCd=0;
+  }
+  get armorTier(){ return Math.round(2+clamp((TideMission.level-0.15)/3.05,0,1)*2); }
+  get absorb(){ return [0,0,0.25,0.40,0.55][this.armorTier]; }
+  damage(v){ this.hp-=v*(1-this.absorb);
+    if(this.hp<=0){ this.state='DEAD';
+      LootSystem.drop(this.pos,10000);
+      Telemetry.log('warden_down',{level:TideMission.level}); } }
+  update(dt,player){
+    if(this.state==='DEAD') return;
+    const d=dist(this.pos,player.pos);
+    if(!player.dead && d<20){
+      this.fireCd-=dt;
+      if(this.fireCd<=0){ this.fireCd=0.2;
+        if(Math.random()<clamp(0.6-d*0.02,0.15,0.6))
+          player.damage(srnd(20,28)+TideMission.level*3,'warden'); }
+      const dx=player.pos.x-this.pos.x,dz=player.pos.z-this.pos.z;
+      const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
+      if(d>8 && depth<2.0){ this.pos.x+=dx/d*this.speed*dt; this.pos.z+=dz/d*this.speed*dt; }
+    }
+  }
+}
+
+// ---- 玩家（单人模式）----
+const PlayerMission = {
+  pos:{x:-27,z:0}, hp:100, dead:false,
+  ammo:240, mag:30, lootT:0, lootTarget:null,
+  reset(){ this.pos={x:-27,z:0}; this.hp=100; this.dead=false;
+    this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null; },
+  speed(){
+    const ws=WaterState.update(MapHeight.depthAt(this.pos.x,this.pos.z));
+    const over=MapHeight.depthAt(this.pos.x,this.pos.z)>1.2
+      ? BackPack.wadingPenalty : BackPack.penalty;
+    return 5.2*ws.move*(1-over);
+  },
+  damage(v,src){
+    if(this.dead) return;
+    this.hp-=v; AUD.hurt();
+    if(this.hp<=0){ this.hp=0; this.dead=true; Mission.end(false,'killed'); }
+  },
+  tryLoot(dt){
+    const it=LootSystem.nearestLoot(this.pos,2.2);
+    if(it && BackPack.canTake()){
+      this.lootTarget=it; this.lootT+=dt;
+      if(this.lootT>=2){ BackPack.take(it); this.lootT=0; AUD.ui(); }
+    } else { this.lootT=0; this.lootTarget=null; }
+  }
+};
+
+// ---- 任务总控 ----
+const Mission = {
+  state:'IDLE', result:null, entities:{scavs:[],drones:[],warden:null},
+  start(){
+    MapHeight.init(); TideMission.start(); LootSystem.spawn();
+    BackPack.items=[]; PlayerMission.reset(); Extraction.reset();
+    WaterState.cur=0;
+    this.entities.scavs=[];
+    for(let i=0;i<12;i++)
+      this.entities.scavs.push(new Scavenger(MapHeight.randomLowPoint(1.0)));
+    this.entities.drones=[[-20,10],[20,-15],[0,18],[-15,-5]]
+      .map(p=>new SalvageDrone({x:p[0],z:p[1]}));
+    this.entities.warden=new TideWarden({x:0,z:0});
+    this.state='RUNNING'; Telemetry.log('mission_start',{});
+  },
+  update(dt){
+    if(this.state!=='RUNNING') return;
+    TideMission.tick(dt);
+    const p=PlayerMission;
+    this.entities.scavs.forEach(s=>s.update(dt,p));
+    this.entities.drones.forEach(d=>{ if(d.state!=='DEAD') d.update(dt,p,this.entities.scavs); });
+    this.entities.warden.update(dt,p);
+    const r=Extraction.update(dt,p);
+    if(r==='EXTRACTED') return this.end(true,'extracted');
+    if(TideMission.t>=TideMission.HARD_CAP) return this.end(false,'timeout');
+  },
+  end(extracted,reason){
+    this.state='ENDED';
+    this.result={extracted,reason,value:BackPack.value,t:TideMission.t};
+    Meta.commit(extracted); Telemetry.log('mission_end',this.result);
+  }
+};
+
+// ---- 局外持久化（带 localStorage 保护，便于无头测试）----
+const Meta = {
+  key:'tideline_meta_v2', data:null,
+  _def(){ return {credits:0,runs:0,extracted:0,bestHaul:0}; },
+  load(){ try{
+    if(typeof localStorage==="undefined"){ this.data=this._def(); return; }
+    this.data=JSON.parse(localStorage.getItem(this.key)||JSON.stringify(this._def()));
+  }catch(e){ this.data=this._def(); } },
+  commit(extracted){
+    if(!this.data) this.data=this._def();
+    const d=this.data; d.runs++;
+    if(extracted){ d.extracted++; d.credits+=BackPack.value; d.bestHaul=Math.max(d.bestHaul,BackPack.value); }
+    try{ if(typeof localStorage!=="undefined") localStorage.setItem(this.key,JSON.stringify(d)); }catch(e){}
+  }
+};
+
+/* ===================== SALVAGE 整合：玩家控制 + 渲染 ===================== */
+const SALVAGE_WP = { name:"打捞步枪", dmg:24, rpm:600, cd:60/600, mag:30, range:70 };
+let salvMuzzle=0, salvCd=0, salvReloadT=0, salvWarn="", salvWarnT=0, stepAccum=0;
+
+function salvageResetView(){ playerYaw=0; playerPitch=0; }
+
+function startSalvage(){
+  gameMode="salvage";
+  AUD.resume();
+  Meta.load();
+  Mission.start();
+  salvageResetView();
+  if(FP.ok){ FP.buildSalvage(); FP.setSceneMode("salvage"); }
+  salvMuzzle=0; salvCd=0; salvReloadT=0; salvWarn=""; salvWarnT=0; stepAccum=0;
+  TideMission.onWarning = (name)=>{ salvWarn="⚠ 潮汐预警："+name+" 段即将到来"; salvWarnT=4; AUD.warn(); };
+  TideMission.onPhaseChange = (name)=>{ salvWarn="潮汐进入 "+name+" 段"; salvWarnT=3; };
+  $("menuScreen").classList.add("hidden");
+  $("loadScreen").classList.add("hidden");
+  $("endScreen").classList.add("hidden");
+  screen="play"; running=true; last=performance.now();
+}
+
+function reloadSalvage(){
+  const P=PlayerMission;
+  if(P.mag>=SALVAGE_WP.mag || P.ammo<=0 || salvReloadT>0) return;
+  salvReloadT=1.6;
+}
+
+function fireSalvage(){
+  const P=PlayerMission; P.mag--; salvMuzzle=0.06; AUD.gun('AR');
+  const fx=Math.sin(playerYaw), fz=-Math.cos(playerYaw);
+  const range=SALVAGE_WP.range, thr=Math.cos(0.14);
+  const ents=[];
+  for(const s of Mission.entities.scavs) if(s.state!=='DEAD') ents.push(s);
+  for(const d of Mission.entities.drones) if(d.state!=='DEAD') ents.push(d);
+  const w=Mission.entities.warden; if(w && w.state!=='DEAD') ents.push(w);
+  let best=null,bestD=1e9;
+  for(const e of ents){
+    const dx=e.pos.x-P.pos.x, dz=e.pos.z-P.pos.z, d=Math.hypot(dx,dz);
+    if(d>range) continue;
+    const dot=(dx*fx+dz*fz)/(d||1);
+    if(dot>=thr && d<bestD){ best=e; bestD=d; }
+  }
+  if(best){ best.damage(SALVAGE_WP.dmg); AUD.hitmark();
+    if(best.state==='DEAD') AUD.kill(); }
+}
+
+function updateSalvage(dt){
+  const P=PlayerMission;
+  // 移动（与 BREACH 共用 yaw 方向）
+  let mvx=0,mvz=0;
+  const yaw=playerYaw, fx=Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=Math.sin(yaw);
+  if(keys.has("KeyW")){mvx+=fx;mvz+=fz;}
+  if(keys.has("KeyS")){mvx-=fx;mvz-=fz;}
+  if(keys.has("KeyD")){mvx+=rx;mvz+=rz;}
+  if(keys.has("KeyA")){mvx-=rx;mvz-=rz;}
+  const L=Math.hypot(mvx,mvz);
+  if(L>0){ const sp=P.speed(); P.pos.x+=mvx/L*sp*dt; P.pos.z+=mvz/L*sp*dt; }
+  P.pos.x=Math.max(-29.5,Math.min(29.5,P.pos.x));
+  P.pos.z=Math.max(-19.5,Math.min(19.5,P.pos.z));
+  // 涉水脚步音 + 环境水声
+  const depth=MapHeight.depthAt(P.pos.x,P.pos.z);
+  if(L>0){ stepAccum+=dt; if(stepAccum>0.32){ stepAccum=0; AUD.step(depth>0,depth); } }
+  AUD.setAmbient(TideMission.level, depth>2.0);
+  // 换弹 / 开火
+  if(keys.has("KeyR")) reloadSalvage();
+  if(salvReloadT>0){ salvReloadT-=dt; if(salvReloadT<=0){
+    const need=SALVAGE_WP.mag-P.mag, take=Math.min(need,P.ammo);
+    P.mag+=take; P.ammo-=take; } }
+  if(mouseDown && P.mag>0 && salvCd<=0){ fireSalvage(); salvCd=SALVAGE_WP.cd; }
+  if(salvCd>0) salvCd-=dt;
+  if(salvMuzzle>0) salvMuzzle-=dt;
+  // 拾取（按住 F）
+  if(keys.has("KeyF")) P.tryLoot(dt);
+  // 模拟推进
+  Mission.update(dt);
+  if(Mission.state==='ENDED') showSalvageEnd();
+}
+
+function showSalvageEnd(){
+  running=false;
+  const r=Mission.result||{extracted:false,reason:'timeout',value:0,t:0};
+  $("verdict").textContent = r.extracted ? "撤离成功" : (r.reason==='killed'?"你阵亡了":"潮水吞没了你");
+  $("verdict").className = "verdict "+(r.extracted?"win":"lose");
+  $("verdictSub").textContent = (r.extracted?"带着战利品安全撤离":"任务失败")+" · 用时 "+r.t.toFixed(0)+"s";
+  $("statList").innerHTML = [
+    ["战利品价值","⌾ "+r.value],
+    ["携带重量", BackPack.kg.toFixed(1)+" kg"],
+    ["结局", r.reason],
+    ["累计信用", "⌾ "+(Meta.data?Meta.data.credits:0)],
+    ["撤离次数", (Meta.data?Meta.data.extracted:0)]
+  ].map(x=>"<div><span>"+x[0]+"</span><span>"+x[1]+"</span></div>").join("");
+  $("btnNext").style.display="none";
+  $("btnEndMatch").textContent="返回主菜单";
+  $("endScreen").classList.remove("hidden");
+  if(FP.ok) FP.setSceneMode("menu");
+}
+
+function drawSalvage(){
+  if(using3D){
+    ctx.clearRect(0,0,W,H);
+    FP.renderSalvage(performance.now()/1000);
+    drawSalvageHUD(); drawCrosshair(); drawVignette();
+    return;
+  }
+  draw2DSalvage();
+  drawSalvageHUD(); drawCrosshair(); drawVignette();
+}
+
+function col2d(h){ const c=FP.hcol(h); return "rgb("+Math.round(c[0]*255)+","+Math.round(c[1]*255)+","+Math.round(c[2]*255)+")"; }
+
+function draw2DSalvage(){
+  const sp=cellPx, P=PlayerMission;
+  const ox=W/2 - P.pos.x*sp, oz=H/2 - P.pos.z*sp;
+  ctx.fillStyle="#05080c"; ctx.fillRect(0,0,W,H);
+  const nx=MapHeight.nx, nz=MapHeight.nz, C=MapHeight.CELL;
+  const x0=Math.max(0,Math.floor((P.pos.x-W/2/sp)/C)), x1=Math.min(nx-1,Math.ceil((P.pos.x+W/2/sp)/C));
+  const z0=Math.max(0,Math.floor((P.pos.z-H/2/sp)/C)), z1=Math.min(nz-1,Math.ceil((P.pos.z+H/2/sp)/C));
+  for(let j=z0;j<=z1;j++) for(let i=x0;i<=x1;i++){
+    const h=MapHeight.grid[j*nx+i];
+    const wx=i*C - MapHeight.W/2, wz=j*C - MapHeight.D/2;
+    ctx.fillStyle=col2d(h); ctx.fillRect(ox+wx, oz+wz, C*sp+1, C*sp+1);
+  }
+  for(let j=z0;j<=z1;j++) for(let i=x0;i<=x1;i++){
+    const h=MapHeight.grid[j*nx+i], d=TideMission.level-h; if(d<=.005) continue;
+    const wx=i*C - MapHeight.W/2, wz=j*C - MapHeight.D/2;
+    const a=Math.min(.82,.20+d*.24);
+    ctx.fillStyle="rgba(26,96,150,"+a.toFixed(3)+")"; ctx.fillRect(ox+wx, oz+wz, C*sp+1, C*sp+1);
+    if(d<1.3){ ctx.fillStyle="rgba(205,232,246,"+Math.min(.5,.14+(1.3-d)*.42).toFixed(3)+")"; ctx.fillRect(ox+wx,oz+wz,C*sp+1,2); }
+  }
+  for(const p of Extraction.points){
+    const active = p.elev>TideMission.level+0.2 && (p.closeAt===Infinity||TideMission.t<p.closeAt);
+    const sx=ox+p.pos.x*sp, sy=oz+p.pos.z*sp;
+    ctx.fillStyle=active?"rgba(80,230,150,.9)":"rgba(120,120,120,.6)";
+    ctx.beginPath(); ctx.arc(sx,sy,7,0,6.2832); ctx.fill();
+    ctx.fillStyle=active?"#9affc8":"#888"; ctx.font="11px sans-serif"; ctx.fillText(p.id,sx+10,sy);
+  }
+  for(const it of LootSystem.items){ if(it.taken) continue;
+    const sx=ox+it.pos.x*sp, sy=oz+it.pos.z*sp;
+    ctx.fillStyle=['#cfd6dd','#5fd0ff','#c08bff','#ffcf5f'][it.rarity];
+    ctx.fillRect(sx-3,sy-3,6,6);
+  }
+  for(const s of Mission.entities.scavs){ if(s.state==='DEAD') continue;
+    const sx=ox+s.pos.x*sp, sy=oz+s.pos.z*sp;
+    ctx.fillStyle="#ff7a5a"; ctx.fillRect(sx-4,sy-4,8,8);
+  }
+  for(const d of Mission.entities.drones){ if(d.state==='DEAD') continue;
+    const sx=ox+d.pos.x*sp, sy=oz+d.pos.z*sp;
+    ctx.fillStyle="#ffd24a"; ctx.beginPath(); ctx.arc(sx,sy,5,0,6.2832); ctx.fill();
+  }
+  const w=Mission.entities.warden; if(w && w.state!=='DEAD'){
+    const sx=ox+w.pos.x*sp, sy=oz+w.pos.z*sp;
+    ctx.fillStyle="#ff3b3b"; ctx.fillRect(sx-8,sy-8,16,16);
+  }
+  ctx.fillStyle="#7fe9ff"; ctx.beginPath(); ctx.arc(ox+P.pos.x*sp,oz+P.pos.z*sp,5,0,6.2832); ctx.fill();
+  ctx.strokeStyle="#7fe9ff"; ctx.beginPath(); ctx.moveTo(ox+P.pos.x*sp,oz+P.pos.z*sp);
+  ctx.lineTo(ox+(P.pos.x+Math.sin(playerYaw)*3)*sp, oz+(P.pos.z-Math.cos(playerYaw))*sp); ctx.stroke();
+}
+
+function drawSalvageHUD(){
+  const P=PlayerMission;
+  ctx.fillStyle="rgba(8,16,24,.55)"; ctx.fillRect(0,0,W,54);
+  ctx.fillStyle="#cfe6f5"; ctx.font="14px sans-serif"; ctx.textAlign="left";
+  const mins=Math.floor(TideMission.t/60), secs=Math.floor(TideMission.t%60);
+  const rem=Math.ceil(TideMission.remaining()), rm=Math.floor(rem/60), rs=rem%60;
+  ctx.fillText("潮汐 "+TideMission.phase+"  水位 "+TideMission.level.toFixed(2)+"m",16,22);
+  ctx.fillText("用时 "+mins+":"+String(secs).padStart(2,'0')+"   撤离倒计时 "+rm+":"+String(rs).padStart(2,'0'),16,40);
+  ctx.textAlign="right";
+  ctx.fillText("战利品 ⌾"+BackPack.value+"  重量 "+BackPack.kg.toFixed(1)+"kg",W-16,22);
+  ctx.fillText("生命 "+Math.max(0,Math.round(P.hp))+"   弹药 "+P.mag+"/"+P.ammo,W-16,40);
+  ctx.textAlign="left"; ctx.font="12px sans-serif";
+  const active=Extraction.active();
+  ctx.fillStyle=active.length?"#7dffb0":"#ff9b7d";
+  ctx.fillText(active.length?("可撤离："+active.map(p=>p.id).join(" / ")):"⚠ 暂无可用撤离点",16,68);
+  const near=LootSystem.nearestLoot(P.pos,2.2);
+  if(near){ ctx.fillStyle="#ffe08a"; ctx.font="15px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("按住 [F] 拾取 "+near.name+"（⌾"+near.value+"）",W/2,H-90); }
+  if(salvWarnT>0){ ctx.fillStyle="rgba(255,210,90,"+Math.min(1,salvWarnT).toFixed(2)+")";
+    ctx.font="bold 20px sans-serif"; ctx.textAlign="center"; ctx.fillText(salvWarn,W/2,110); salvWarnT-=1/60; }
+  ctx.textAlign="left";
+}
+
+/* ---------- FP3D 扩展：SALVAGE 场景（共用 renderer/scene/camera）---------- */
+FP.setSceneMode = function(m){
+  const bv=m==='breach', sv=m==='salvage';
+  if(this.ground) this.ground.visible=bv;
+  if(this.siteMeshes) this.siteMeshes.forEach(x=>x.visible=bv);
+  if(this.unitMap) this.unitMap.forEach(x=>x.visible=bv);
+  if(this.coverPool) this.coverPool.forEach(x=>x.visible=false);
+  if(this.floaterPool) this.floaterPool.forEach(x=>x.visible=false);
+  if(this.tracerLines) this.tracerLines.visible=false;
+  if(this.ripplePool) this.ripplePool.forEach(x=>x.visible=false);
+  if(this.water) this.water.visible = (bv||sv);
+  if(this.salvGroup) this.salvGroup.visible = sv;
+};
+FP.buildSalvage = function(){
+  if(this.salvGroup){ this.scene.remove(this.salvGroup); this.salvGroup=null; }
+  const grp=new THREE.Group(); this.salvGroup=grp; this.scene.add(grp);
+  const N=MapHeight.W, D=MapHeight.D, nx=MapHeight.nx, nz=MapHeight.nz;
+  const geo=new THREE.PlaneGeometry(N,D,nx-1,nz-1); geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position, colors=[];
+  for(let i=0;i<pos.count;i++){
+    const wx=pos.getX(i)+N/2, wz=pos.getZ(i)+D/2;
+    const h=MapHeight.sample(wx,wz);
+    pos.setX(i,wx); pos.setZ(i,wz); pos.setY(i,h);
+    const c=this.hcol(h); colors.push(c[0],c[1],c[2]);
+  }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors,3));
+  this.salvGround=new THREE.Mesh(geo, new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true}));
+  grp.add(this.salvGround);
+  this.lootPool=[]; for(let i=0;i<25;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5),
+    new THREE.MeshBasicMaterial({color:0xffffff})); m.visible=false; grp.add(m); this.lootPool.push(m); }
+  this.scavPool=[]; for(let i=0;i<12;i++){ const m=new THREE.Group();
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.6,1.2,0.36), new THREE.MeshLambertMaterial({color:0xff7a5a}));
+    b.position.y=0.6; m.add(b); m.visible=false; grp.add(m); this.scavPool.push(m); }
+  this.dronePool=[]; for(let i=0;i<4;i++){ const m=new THREE.Mesh(new THREE.SphereGeometry(0.5,12,10),
+    new THREE.MeshLambertMaterial({color:0xffd24a})); m.visible=false; grp.add(m); this.dronePool.push(m); }
+  this.wardenMesh=new THREE.Mesh(new THREE.BoxGeometry(1.6,3,1.6),
+    new THREE.MeshLambertMaterial({color:0xff3b3b,emissive:0x440000}));
+  this.wardenMesh.visible=false; grp.add(this.wardenMesh);
+  this.extrPool=Extraction.points.map(p=>{
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,4,12),
+      new THREE.MeshBasicMaterial({color:0x50e696,transparent:true,opacity:0.8}));
+    m.position.set(p.pos.x, p.elev+2, p.pos.z); grp.add(m); return m;
+  });
+};
+FP.renderSalvage = function(t){
+  if(!this.ok || !this.salvGroup) return;
+  const P=PlayerMission; if(!P) return;
+  const g=MapHeight.sample(P.pos.x,P.pos.z);
+  const depth=Math.max(0,TideMission.level-g);
+  const eye=Math.max(g,TideMission.level)+1.5;
+  this.camera.position.set(P.pos.x, eye, P.pos.z);
+  const yaw=playerYaw, pitch=playerPitch, horiz=Math.cos(pitch);
+  this.camera.lookAt(P.pos.x+Math.sin(yaw)*horiz, eye+Math.sin(pitch), P.pos.z-Math.cos(yaw)*horiz);
+  if(this.water){ this.water.position.y=TideMission.level;
+    const wpos=this.water.geometry.attributes.position;
+    for(let i=0;i<wpos.count;i++){ const x=wpos.getX(i),z=wpos.getZ(i);
+      wpos.setY(i, Math.sin(x*0.32+t*1.2)*0.07+Math.cos(z*0.26+t*0.9)*0.07); }
+    wpos.needsUpdate=true; }
+  for(let i=0;i<this.lootPool.length;i++){ const it=LootSystem.items[i], m=this.lootPool[i];
+    if(!it||it.taken){ m.visible=false; continue; } m.visible=true;
+    m.position.set(it.pos.x, Math.max(MapHeight.sample(it.pos.x,it.pos.z),TideMission.level)+0.4, it.pos.z);
+    m.material.color.setHex([0xcfd6dd,0x5fd0ff,0xc08bff,0xffcf5f][it.rarity]); }
+  for(let i=0;i<this.scavPool.length;i++){ const s=Mission.entities.scavs[i], m=this.scavPool[i];
+    if(!s||s.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
+    m.position.set(s.pos.x, MapHeight.sample(s.pos.x,s.pos.z)+0.6, s.pos.z); }
+  for(let i=0;i<this.dronePool.length;i++){ const d=Mission.entities.drones[i], m=this.dronePool[i];
+    if(!d||d.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
+    m.position.set(d.pos.x, Math.max(MapHeight.sample(d.pos.x,d.pos.z),TideMission.level)+2.0, d.pos.z); }
+  if(this.wardenMesh){ const w=Mission.entities.warden;
+    if(!w||w.state==='DEAD'){ this.wardenMesh.visible=false; }
+    else { this.wardenMesh.visible=true; this.wardenMesh.position.set(w.pos.x, MapHeight.sample(w.pos.x,w.pos.z)+1.5, w.pos.z); } }
+  for(let i=0;i<this.extrPool.length;i++){ const p=Extraction.points[i], m=this.extrPool[i];
+    const active=p.elev>TideMission.level+0.2 && (p.closeAt===Infinity||TideMission.t<p.closeAt);
+    m.material.color.setHex(active?0x50e696:0x666666); m.material.opacity=active?0.85:0.35; }
+  if(this.gun){ this.gun.position.z=-0.5+(salvMuzzle>0?salvMuzzle*0.06:0);
+    this.gun.position.y=-0.20+(salvMuzzle>0?salvMuzzle*0.02:0); }
+  if(this.muzzleLight) this.muzzleLight.intensity=salvMuzzle>0?7:0;
+  this.renderer.render(this.scene,this.camera);
+};
 </script>
 </body>
 </html>

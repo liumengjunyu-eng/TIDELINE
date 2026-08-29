@@ -23,6 +23,7 @@ function fakeEl() {
     classList: { _s: new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);},
                  contains(c){return this._s.has(c);} },
     addEventListener: () => {}, getContext: () => fakeCtx(),
+    querySelectorAll: () => [],
     width: 1280, height: 720, click: () => {} };
 }
 const els = {};

@@ -51,6 +51,7 @@ const THREE = {
   BoxGeometry: function(){ return Geometry(); },
   SphereGeometry: function(){ return Geometry(); },
   TorusGeometry: function(){ return Geometry(); },
+  CylinderGeometry: function(){ return Geometry(); },
   BufferGeometry: function(){ return Geometry(); },
   Float32BufferAttribute: function(arr){ return { array: arr, needsUpdate:false }; },
   MeshLambertMaterial: function(o){ return Material(o); },
@@ -76,7 +77,7 @@ function fakeCtx() {
 function fakeEl() {
   return { textContent:"", innerHTML:"", style:{}, dataset:{},
     classList:{ _s:new Set(), add(c){this._s.add(c);}, remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);} },
-    addEventListener:()=>{}, getContext:()=>fakeCtx(), width:1280, height:720, click:()=>{} };
+    addEventListener:()=>{}, getContext:()=>fakeCtx(), querySelectorAll:()=>[], width:1280, height:720, click:()=>{} };
 }
 const els = {}; const store = {};
 const sandbox = {
@@ -130,6 +131,17 @@ try {
   run("g.phase=2; g.phaseElapsed=0; g.water=3.2; for(var k=0;k<10;k++){ update(1/60); FP.render(1.5); }");
 } catch (e) { tideErr = e; }
 check("满潮 3.2m 下渲染无异常（水面/浮箱/孤岛）", tideErr === null, tideErr ? tideErr.message : "");
+
+// ---- SALVAGE 3D 渲染路径（buildSalvage / renderSalvage）----
+let salvErr = null;
+try {
+  run("gameMode='salvage'; startSalvage();");
+  for (let f=0; f<30; f++) {
+    run("Mission.update(1/60); FP.renderSalvage(" + (f/60) + ");");
+  }
+} catch (e) { salvErr = e; }
+check("SALVAGE: buildSalvage 建立 salvGroup 场景", ev("FP.salvGroup!==null"));
+check("SALVAGE: renderSalvage 30 帧无异常", salvErr === null, salvErr ? salvErr.message : "30 帧无报错");
 
 console.log("\n"+"=".repeat(66));
 console.log(`结果：${pass} 项 PASS / ${fail} 项 FAIL`);
