@@ -7,7 +7,7 @@
 
 ## 怎么玩（最快路径）
 
-**双击打开 `web/index.html` 即可玩**（单文件、零依赖、离线可跑）。
+**双击打开 `web/index.html` 即可玩**（单 HTML 文件；3D 需联网加载引擎，离线自动走 2D）。
 - 主菜单 → 选干员/武器/护甲 → 部署 → 进入第一人称对局。
 - 第一人称操作：
   - 点击画面 **锁定鼠标** 控制视角（移动鼠标 = 转向/俯仰）
@@ -16,7 +16,7 @@
   - 水越深越慢；水深 > 2.0m 自动降级为**副武器（手枪）**，不是缴械
   - 集装箱随水位浮起，水涨后变成通往高地的新路
 
-> 若浏览器/环境不支持 WebGL，游戏会**自动回退到俯视 2D 模式**，机制完全一致。
+> 若浏览器不支持 WebGL，或 Three.js CDN 加载失败（如离线），游戏会**自动回退到俯视 2D 模式**，机制完全一致。
 
 ---
 
@@ -90,4 +90,34 @@ python tools/sim_verify.py
 
 ---
 
-_最后更新：第一人称 3D 视角上线（Three.js，自动回退 2D）；逻辑测试 66/66、3D 路径 5/5 通过。_
+## 上线到 GitHub Pages（免费静态托管，访客点链接即玩）
+
+1. 把本仓库推送到 GitHub（见下方「推送到 GitHub」）。
+2. 仓库 **Settings → Pages → Source** 选 **Deploy from a branch** → 分支 `main` + 目录 `/ (root)` → Save。
+3. 等待 1–2 分钟，按下面两种方式之一访问：
+   - **方式 A（推荐，零改动）**：直接把 `web/` 作为站点目录，链接为
+     `https://<用户名>.github.io/<仓库名>/web/`
+   - **方式 B**：把 `web/index.html` 移到仓库根目录，则根链接 `https://<用户名>.github.io/<仓库名>/` 即打开游戏。
+4. 第一人称 3D 依赖 **Three.js CDN**（见下），访客需联网；若需完全离线托管，见「离线化」。
+
+### 关于 Three.js CDN 依赖
+`web/index.html` 通过 `https://cdnjs.cloudflare.com/.../three.min.js (r128)` 加载 3D 引擎。
+- 联网时一切正常（GitHub Pages 访客默认可用）。
+- **离线 / 自包含方案**：下载 `three.min.js`（r128）放到 `web/vendor/three.min.js`，
+  并把 `index.html` 中 `<script src="...cdnjs...">` 改为 `<script src="vendor/three.min.js">`。
+  （`.gitignore` 已放行 `web/vendor/`，不会误忽略。本仓库因沙箱无外网，未预置该文件。）
+
+### 推送到 GitHub（此步骤需你提供仓库地址）
+当前已 `git init` 并在本地提交（commit `51397e4`，共 39 个文件）。推送到 GitHub 需你：
+- 在 github.com **新建空仓库**（不要勾选自动生成 README / LICENSE，避免冲突）；
+- 然后告诉我仓库地址，我执行：
+  ```bash
+  git remote add origin <你的仓库URL>
+  git branch -M main
+  git push -u origin main
+  ```
+  或你在本地自行执行这三条命令。
+
+---
+
+_最后更新：完成发布准备（MIT LICENSE + git 本地提交 + GitHub Pages 上线指引）；第一人称 3D（Three.js CDN，离线回退 2D）；逻辑测试 66/66、3D 路径 5/5 通过。_
