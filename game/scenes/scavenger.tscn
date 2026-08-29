@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://entities/scavenger_ai.gd" id="1_sca"]
+
+[sub_resource type="CapsuleShape3D" id="CapShape_1"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_1"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="ScavMat_1"]
+albedo_color = Color(1, 0.32, 0.24, 1)
+
+[node name="Scavenger" type="CharacterBody3D"]
+script = ExtResource("1_sca")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapShape_1")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("CapsuleMesh_1")
+material_override = SubResource("ScavMat_1")

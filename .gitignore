@@ -1,0 +1,14 @@
+# Godot 工程缓存（game/ 为设计参考源码，非运行交付物）
+.godot/
+*.tmp
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 依赖目录（当前未使用）
+node_modules/
+
+# 本地化 vendor 占位（如需离线，手动放置 three.min.js 至此目录）
+web/vendor/

@@ -1,0 +1,23 @@
+; Engine configuration file for Godot 4.x
+; TIDELINE · 潮线 — P0 垂直切片
+; 注意：P0 全 GDScript，禁止 C#（Web 导出兼容）
+
+[application]
+
+config_version=5
+run/main_scene="res://scenes/main.tscn"
+config/name="TIDELINE"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[autoload]
+
+Telemetry="*res://autoload/telemetry.gd"
+TideController="*res://autoload/tide_controller.gd"
+
+[input]
+
+; 预留：移动/交互键位 P0 简化
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

@@ -1,0 +1,124 @@
+[gd_scene load_steps=19 format=3]
+
+[ext_resource type="Script" path="res://world/terrain_body.gd" id="1_terrain"]
+[ext_resource type="Script" path="res://world/terrain_mesh.gd" id="2_tmesh"]
+[ext_resource type="Script" path="res://entities/player_controller.gd" id="3_player"]
+[ext_resource type="Script" path="res://entities/weapon.gd" id="4_weapon"]
+[ext_resource type="Script" path="res://systems/navigation_manager.gd" id="5_nav"]
+[ext_resource type="Script" path="res://world/floating_bridge.gd" id="6_bridge"]
+[ext_resource type="Script" path="res://systems/extraction.gd" id="7_extract"]
+[ext_resource type="Script" path="res://systems/enemy_spawner.gd" id="8_spawn"]
+[ext_resource type="Script" path="res://camera/tide_camera.gd" id="9_cam"]
+[ext_resource type="PackedScene" path="res://scenes/scavenger.tscn" id="10_scav"]
+[ext_resource type="Script" path="res://main.gd" id="11_main"]
+[ext_resource type="Script" path="res://world/water_surface.gd" id="12_water"]
+
+[sub_resource type="CapsuleShape3D" id="CapShape_1"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_1"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="PlayerMat_1"]
+albedo_color = Color(0.24, 0.62, 1, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_1"]
+top_radius = 1.1
+bottom_radius = 1.1
+height = 0.25
+
+[sub_resource type="StandardMaterial3D" id="ExtractMat_1"]
+albedo_color = Color(0.35, 1, 0.45, 1)
+emission_enabled = true
+emission = Color(0.35, 1, 0.45, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(8, 0.3, 2)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("11_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707107, -0.707107, 0, 0.707107, 0.707107, 0, 40, 0)
+light_energy = 1.15
+
+[node name="Terrain" type="StaticBody3D" parent="."]
+script = ExtResource("1_terrain")
+
+[node name="Water" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 32)
+script = ExtResource("12_water")
+
+[node name="TerrainMesh" type="MeshInstance3D" parent="."]
+script = ExtResource("2_tmesh")
+
+[node name="NavLow" type="NavigationRegion3D" parent="."]
+
+[node name="NavRising" type="NavigationRegion3D" parent="."]
+
+[node name="NavHigh" type="NavigationRegion3D" parent="."]
+
+[node name="NavManager" type="Node" parent="."]
+script = ExtResource("5_nav")
+nav_low = NodePath("NavLow")
+nav_rising = NodePath("NavRising")
+nav_high = NodePath("NavHigh")
+
+[node name="FloatingBridge" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0, 40)
+script = ExtResource("6_bridge")
+deck_offset = 0.15
+
+[node name="BridgeBody" type="StaticBody3D" parent="FloatingBridge"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FloatingBridge/BridgeBody"]
+shape = SubResource("BoxShape3D_1")
+
+[node name="NavLink" type="NavigationLink3D" parent="FloatingBridge"]
+
+[node name="ExtractA" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 0.15, 32)
+mesh = SubResource("CylinderMesh_1")
+material_override = SubResource("ExtractMat_1")
+
+[node name="ExtractB" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0.4, 48)
+mesh = SubResource("CylinderMesh_1")
+material_override = SubResource("ExtractMat_1")
+
+[node name="ExtractC" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 4.1, 44)
+mesh = SubResource("CylinderMesh_1")
+material_override = SubResource("ExtractMat_1")
+
+[node name="ExtractionSystem" type="Node" parent="."]
+script = ExtResource("7_extract")
+bridge = NodePath("FloatingBridge")
+extraction_markers = [NodePath("ExtractA"), NodePath("ExtractB"), NodePath("ExtractC")]
+
+[node name="EnemySpawner" type="Node" parent="."]
+script = ExtResource("8_spawn")
+scavenger_scene = ExtResource("10_scav")
+edge_points = [Vector3(6, 0, 6), Vector3(58, 0, 6), Vector3(6, 0, 58), Vector3(58, 0, 58), Vector3(32, 0, 6), Vector3(32, 0, 58), Vector3(50, 0, 20), Vector3(16, 0, 16)]
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 3.2, 56)
+script = ExtResource("3_player")
+extraction_markers = [NodePath("ExtractA"), NodePath("ExtractB"), NodePath("ExtractC")]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("CapShape_1")
+
+[node name="Body" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("CapsuleMesh_1")
+material_override = SubResource("PlayerMat_1")
+
+[node name="Weapon" type="Node3D" parent="Player"]
+script = ExtResource("4_weapon")
+
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 38, 64)
+script = ExtResource("9_cam")
+current = true

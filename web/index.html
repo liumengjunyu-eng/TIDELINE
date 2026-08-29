@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>TIDELINE 潮线 · BREACH 破堤</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#05080c;
+    font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    color:#e6ecf2; -webkit-font-smoothing:antialiased; user-select:none; }
+  #scene, #hud { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #scene { z-index:0; background:#05080c; cursor:crosshair; }
+  #hud { z-index:1; pointer-events:none; }
+  .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(6,12,20,.26), rgba(2,5,9,.72));
+    z-index:20; backdrop-filter:blur(2px); overflow:auto; }
+  .overlay.hidden { display:none; }
+  .panel { width:min(1100px,96vw); padding:26px 32px 22px; background:rgba(10,16,24,.92);
+    border:1px solid rgba(90,170,220,.26); border-radius:14px; margin:auto;
+    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05); }
+  .panel.narrow { width:min(720px,94vw); }
+  .title { font-size:34px; font-weight:800; letter-spacing:.14em; color:#eaf4ff;
+    position:relative; animation:titlePulse 3.4s ease-in-out infinite; }
+  .title .ch { display:inline-block; transform:translateY(14px); opacity:0;
+    animation:chRise .7s cubic-bezier(.2,.7,.3,1) forwards; }
+  @keyframes chRise { to { transform:translateY(0); opacity:1; } }
+  @keyframes titlePulse {
+    0%,100% { text-shadow:0 0 14px rgba(255,150,70,.28), 0 0 34px rgba(255,120,50,.12); }
+    50%     { text-shadow:0 0 22px rgba(255,170,90,.55), 0 0 54px rgba(255,120,50,.24); }
+  }
+  .title small { display:block; font-size:11.5px; letter-spacing:.38em; color:#5f7f96;
+    font-weight:500; margin-top:7px; }
+  .lede { margin:16px 0 4px; font-size:13.5px; line-height:1.8; color:#b0c4d4; }
+  .lede b { color:#4fb4e8; font-weight:600; }
+  .tabs { display:flex; gap:8px; margin:18px 0 12px; flex-wrap:wrap; }
+  .tab { padding:7px 18px; font-size:13px; font-weight:600; border-radius:7px; cursor:pointer;
+    background:rgba(255,255,255,.04); color:#8ba4b6; border:1px solid transparent; }
+  .tab:hover { background:rgba(90,160,210,.10); }
+  .tab.sel { background:rgba(70,150,210,.18); color:#dff0fb; border-color:rgba(110,200,255,.5); }
+  .cols { display:grid; gap:16px; }
+  .c3 { grid-template-columns:1fr 1fr 1fr; }
+  .col h3 { font-size:11.5px; letter-spacing:.2em; color:#6f93aa; font-weight:700;
+    margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(120,170,200,.16); }
+  .scroll { max-height:min(44vh,400px); overflow-y:auto; padding-right:6px; }
+  .scroll::-webkit-scrollbar { width:6px; }
+  .scroll::-webkit-scrollbar-thumb { background:rgba(110,170,210,.28); border-radius:3px; }
+  .card { padding:8px 11px; margin-bottom:6px; border-radius:7px; cursor:pointer;
+    background:rgba(255,255,255,.03); border:1px solid transparent; transition:background .12s; }
+  .card:hover { background:rgba(90,160,210,.10); }
+  .card.sel { background:rgba(70,150,210,.17); border-color:rgba(110,200,255,.55); }
+  .card.dis { opacity:.38; cursor:not-allowed; }
+  .card .n { font-size:13.5px; font-weight:700; color:#dceaf6; }
+  .card .n em { font-style:normal; font-size:10.5px; color:#7fa6bd; margin-left:6px; letter-spacing:.06em; }
+  .card .n .pr { float:right; color:#ffd36a; font-size:12px; }
+  .card .d { font-size:11px; color:#8ba4b6; margin-top:2px; line-height:1.5; }
+  .card .d b { color:#63c8f0; font-weight:600; }
+  .btn { margin-top:18px; padding:12px 34px; font-size:14.5px; font-weight:700;
+    letter-spacing:.1em; color:#04121c; background:linear-gradient(180deg,#6fd0ff,#2f9fd8);
+    border:none; border-radius:8px; cursor:pointer; transition:transform .12s;
+    box-shadow:0 8px 24px rgba(60,150,210,.32); font-family:inherit; }
+  .btn:hover { transform:translateY(-2px); }
+  .btn.ghost { background:transparent; border:1px solid rgba(120,190,230,.42);
+    color:#9fd4f0; box-shadow:none; margin-left:9px; }
+  .btn.ghost:hover { background:rgba(80,150,200,.12); }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin:16px 0 2px;
+    font-size:13px; color:#a8bccb; }
+  .stats div { display:flex; justify-content:space-between;
+    border-bottom:1px dashed rgba(120,170,200,.16); padding-bottom:4px; }
+  .stats span:last-child { color:#e8f4ff; font-weight:600; }
+  .verdict { font-size:28px; font-weight:800; }
+  .verdict.win { color:#5ce08a; } .verdict.lose { color:#ff6b5a; }
+  .sub { font-size:13px; color:#8fa4b4; margin:6px 0 2px; }
+  .hint { margin-top:12px; font-size:11.5px; color:#6d8296; line-height:1.65; }
+  .keys { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; margin-top:14px;
+    font-size:12px; color:#93a8b8; }
+  .keys kbd { background:rgba(80,150,200,.14); border:1px solid rgba(120,190,230,.3);
+    border-radius:5px; padding:2px 7px; font-size:11px; color:#cfe6f5; white-space:nowrap; }
+  .fac { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:9px; }
+  .lvbar { display:inline-flex; gap:3px; margin-left:6px; vertical-align:middle; }
+  .lvbar i { width:12px; height:4px; border-radius:2px; background:rgba(255,255,255,.16); }
+  .lvbar i.on { background:#5fd0ff; }
+</style>
+<!-- 第一人称 3D 渲染依赖 Three.js（CDN）。若离线/无 WebGL，自动降级为原俯视 2D。 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<canvas id="hud"></canvas>
+
+<div class="overlay" id="menuScreen">
+  <div class="panel narrow">
+    <div class="title" id="gameTitle"><span class="ch" style="animation-delay:.05s">T</span><span class="ch" style="animation-delay:.13s">I</span><span class="ch" style="animation-delay:.21s">D</span><span class="ch" style="animation-delay:.29s">E</span><span class="ch" style="animation-delay:.37s">L</span><span class="ch" style="animation-delay:.45s">I</span><span class="ch" style="animation-delay:.53s">N</span><span class="ch" style="animation-delay:.61s">E</span><small>潮 线 · BREACH 破 堤</small></div>
+    <p class="lede">
+      5v5 爆破。每回合 <b>100 秒</b>，水位从 0 涨到 <b>3.2 米</b>。<br>
+      进攻方在 <b>A / B 两点</b>之一<b>安放解码器</b>并守住 35 秒；防守方要<b>拆除</b>它。<br>
+      <b>先到 13 分</b>，第 12 回合换边。技能要买，枪也要买 —— 每回合都是一次下注。
+    </p>
+    <div class="tabs" id="modeTabs"></div>
+    <div class="stats" id="profileStats"></div>
+    <div>
+      <button class="btn" id="btnDeploy">部 署</button>
+      <button class="btn ghost" id="btnBase">根据地</button>
+    </div>
+    <div class="keys">
+      <kbd>W A S D</kbd><span>移动 — 水越深越慢，<b>没顶后只能用副武器（手枪）</b></span>
+      <kbd>鼠标</kbd><span>转动视角（点击画面锁定鼠标 · Esc 退出）　<kbd>左键</kbd>开火　<kbd>R</kbd>换弹　<kbd>Q</kbd>技能</span>
+      <kbd>E</kbd><span>长按安放 / 拆除解码器（站在点位上）</span>
+      <kbd>集装箱</kbd><span>随水位浮起，水涨后会变成通往高地的新路</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="loadScreen">
+  <div class="panel">
+    <div class="title" id="loadTitle">配 装</div>
+    <div class="tabs" id="loadTabs"></div>
+    <div class="cols c3">
+      <div class="col"><h3 id="h1">干 员</h3><div class="scroll" id="list1"></div></div>
+      <div class="col"><h3 id="h2">主 武 器</h3><div class="scroll" id="list2"></div></div>
+      <div class="col"><h3 id="h3">护甲 / 弹药</h3><div class="scroll" id="list3"></div></div>
+    </div>
+    <div class="stats" id="loadStats"></div>
+    <div>
+      <button class="btn" id="btnReady">进 入 回 合</button>
+      <button class="btn ghost" id="btnBackMenu">返回</button>
+    </div>
+    <p class="hint" id="loadHint"></p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="baseScreen">
+  <div class="panel">
+    <div class="title">根据地<small>SAFEHOUSE · 局外成长</small></div>
+    <p class="lede">用比赛赚的<b>打捞券</b>升级设施。升级永久生效，保存在本机。</p>
+    <div class="fac" id="facList"></div>
+    <div class="stats" id="baseStats"></div>
+    <button class="btn" id="btnBaseBack">返 回</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="endScreen">
+  <div class="panel narrow">
+    <div class="verdict" id="verdict">—</div>
+    <div class="sub" id="verdictSub"></div>
+    <div class="stats" id="statList"></div>
+    <div>
+      <button class="btn" id="btnNext">下 一 回 合</button>
+      <button class="btn ghost" id="btnEndMatch">结束比赛</button>
+      <button class="btn ghost" id="btnExport">导出埋点</button>
+    </div>
+    <p class="hint" id="exportHint"></p>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   TIDELINE 潮线 · BREACH 破堤
+   依据 01_核心设定集.md：
+     §3   潮汐三阶段（低潮 0-40s / 涨潮 40-75s / 满潮 75-100s）
+     §5.2 首发 8 名干员（真实被动 + 三级主动）
+     §7.1 模式一 BREACH（5v5 / 100s / 先到 13 分 / 第 12 回合换边）
+     §7.2 回合经济表（起始 800 / 胜 3250 / 败 1400 / 连败补偿）
+     §7.3 时间常数（移速 5.2 / 涉水 2.9 / 准备 15s 首次 30s）
+   标高与潮汐判定与 Godot 工程保持一致。
+   ========================================================================== */
+
+/* ---------- 标高网格（world/m01_slagwerf.gd） ---------- */
+const GRID = 64;
+function heightAt(x, z) {
+  if (x < 0 || x >= GRID || z < 0 || z >= GRID) return 2.2;
+  const wx = x, wz = z;
+  if ((wx < 16 && wz > 48) || (wx > 48 && wz < 16)) return 2.2;
+  if (Math.abs(wx - 48) <= 8 && Math.abs(wz - 20) <= 8) return 4.0;
+  if (Math.abs(wx - 20) <= 3 && Math.abs(wz - 44) <= 3) return 3.9;
+  if (wz < 24 && Math.abs(wx - 16) <= 12) return 1.8;
+  if (wz > 40 && Math.abs(wx - 48) <= 12) return 1.0;
+  if (Math.abs(wx - 20) <= 8 && Math.abs(wz - 48) <= 8) return 0.2;
+  if (Math.abs(wx - 32) <= 4 && wz > 36 && wz <= 44) return 0.0;
+  if (Math.abs(wx - 32) <= 16 && Math.abs(wz - 32) <= 16) return 0.0;
+  return 2.2;
+}
+function sampleHeight(x, z) { return heightAt(Math.floor(x), Math.floor(z)); }
+function nearestHighGround(fx, fz, radius, minH) {
+  let bx = fx, bz = fz, bh = heightAt(Math.floor(fx), Math.floor(fz));
+  const r = Math.ceil(radius);
+  for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+    const x = Math.floor(fx) + dx, z = Math.floor(fz) + dz;
+    if (x < 0 || x >= GRID || z < 0 || z >= GRID) continue;
+    if (Math.abs(dx) + Math.abs(dz) > r) continue;
+    const h = heightAt(x, z);
+    if (h >= minH && h > bh) { bx = x; bh = h; bz = z; }
+  }
+  return { x: bx, z: bz, h: bh };
+}
+
+/* ---------- 潮汐（§3） ---------- */
+const LOW = 0, RISING = 1, HIGH = 2;
+const PHASE_NAME = ["低潮", "涨潮", "满潮"];
+const PHASE_DUR = [40, 35, 25];
+const PHASE_WATER = [[0.00, 0.15], [0.15, 1.50], [1.50, 3.20]];
+const ROUND_TIME = 100;
+
+/* ---------- 涉水四档 ---------- */
+const ENTER_T = [0.0, 0.3, 1.2, 2.0];
+const EXIT_T = [0.0, 0.2, 1.1, 1.9];
+const SPEED_M = [1.00, 0.85, 0.55, 0.40];
+const STATE_NAME = ["干爽", "浅水", "涉水", "游泳"];
+function updateWaterState(cur, depth) {
+  if (cur < 3 && depth >= ENTER_T[cur + 1]) return cur + 1;
+  if (cur > 0 && depth <= EXIT_T[cur]) return cur - 1;
+  return cur;
+}
+
+/* ---------- 干员（§5.2 首发 8 名） ---------- */
+const OPERATORS = [
+  { id:"kestrel", name:"隼", code:"KESTREL", who:"Mira Solberg", cls:"突破",
+    passive:"Dry Footing 干足", pdesc:"涉水速度惩罚减半，且不产生噪音波纹",
+    skill:"Surge Step 涌步", sdesc:"向前瞬移", cd:28,
+    lv:["瞬移 8m","瞬移 11m","11m + 落地减速力场"] },
+  { id:"cauldron", name:"沸釜", code:"CAULDRON", who:"Dmitri Volkov", cls:"突破",
+    passive:"Overpressure 超压", pdesc:"霰弹与爆炸物伤害 +25%",
+    skill:"Steam Vent 泄压", sdesc:"身前开洞，造成范围伤害", cd:35,
+    lv:["5m / 60 伤害","7m / 85 伤害","9m / 110 伤害"] },
+  { id:"lamplight", name:"渔火", code:"LAMPLIGHT", who:"林砚 Lin Yan", cls:"控场",
+    passive:"Tide Sense 潮感", pdesc:"15m 内敌人持续显示轮廓（不需视线）",
+    skill:"Drift Net 流网", sdesc:"投出电网，敌人减速 35% 并暴露", cd:32,
+    lv:["5s / 6m","7s / 8.4m","7s + 12 点/秒伤害"] },
+  { id:"bulwark", name:"堤", code:"BULWARK", who:"Amara Okonkwo", cls:"控场",
+    passive:"Anchored 锚定", pdesc:"静止 1.5s 后散布 -25%",
+    skill:"Floodgate 闸门", sdesc:"升起可部署掩体，水面上漂浮", cd:30,
+    lv:["20s / 基础耐久","耐久 +100%","顶部可站立"] },
+  { id:"skimmer", name:"掠波", code:"SKIMMER", who:"Kenji Arakawa", cls:"机动",
+    passive:"Surface Tension 水面张力", pdesc:"可在水面冲刺不沉",
+    skill:"Wake 尾迹", sdesc:"制造假身位噪音与波纹", cd:22,
+    lv:["8s 假身 ×1","假身 ×2","假身 ×2 + 本体静音"] },
+  { id:"gannel", name:"渠", code:"GANNEL", who:"Sofia Marchetti", cls:"机动",
+    passive:"Rope Memory 绳忆", pdesc:"移动速度 +15%，换弹 +35%",
+    skill:"Grapple Line 钩索", sdesc:"牵引至目标点", cd:25,
+    lv:["12m","18m","25m + 终点击退"] },
+  { id:"ledger", name:"账房", code:"LEDGER", who:"Yusuf Demir", cls:"支援",
+    passive:"Salvage Right 打捞权", pdesc:"队友阵亡全队 +150 信用点",
+    skill:"Resupply Drop 补给投放", sdesc:"补充弹药并治疗", cd:40,
+    lv:["补弹 + 回 30 血","回 55 血","回 55 血 + 掩体"] },
+  { id:"dredger", name:"浚", code:"DREDGER", who:"Elena Vasquez", cls:"支援",
+    passive:"Second Wind 回潮", pdesc:"血量低于 25% 时移速 +20%、换弹 +35%",
+    skill:"Backwash 回卷", sdesc:"标记最近敌人，对其增伤 15%", cd:30,
+    lv:["10s / +15% 伤害","击杀回 30 血","目标无法被治疗"] }
+];
+
+/* ---------- 枪械：5 厂商 · 6 类 · 24 把 ---------- */
+const WEAPONS = [
+  ["K7","K-7 海鸦","KESTREL","AR", 800,30,30, 9,0.010,1,2700],
+  ["K4","K-4 燕鸥","KESTREL","SMG",900,24,30, 7,0.016,1,1500],
+  ["K2","K-2 苍鹭","KESTREL","DMR",320,58,12,16,0.006,1,3000],
+  ["K9","K-9 鱼鹰","KESTREL","SR",  55,95, 5,22,0.002,1,4750],
+  ["K5","K-5 白鹭","KESTREL","LMG",620,34,60,10,0.020,1,3400],
+  ["V31","V-31 锈潮","VOLGA","AR", 600,41,20,14,0.015,1,2900],
+  ["V2","V-2 铁锈","VOLGA","SMG",  750,28,25, 9,0.020,1,1200],
+  ["V8","V-8 洪峰","VOLGA","LMG",  540,40,75,12,0.026,1,3600],
+  ["V5","V-5 崩岸","VOLGA","SG",    70,20, 7,26,0.075,9,2100],
+  ["V6","V-6 浊浪","VOLGA","DMR",  280,62,10,19,0.008,1,2600],
+  ["A1","A-1 暗流","SHINKAI","AR", 950,26,30, 8,0.014,1,2400],
+  ["A7","A-7 逆流","SHINKAI","SMG",1100,20,40, 6,0.019,1,1700],
+  ["A3","A-3 潮涌","SHINKAI","SG",  60,18, 6,28,0.080,9,1800],
+  ["A5","A-5 漩涡","SHINKAI","DMR",400,48,15,15,0.009,1,2800],
+  ["A9","A-9 涌浪","SHINKAI","LMG",700,30,80, 9,0.024,1,3200],
+  ["T7","T-7 铆钉","ATLAS","AR",   620,38,25,13,0.013,1,2500],
+  ["T3","T-3 长堤","ATLAS","LMG",  550,38,50,11,0.022,1,3300],
+  ["T9","T-9 深钻","ATLAS","DMR",  300,55,10,18,0.006,1,3100],
+  ["T1","T-1 铁砧","ATLAS","SR",    45,110,4,25,0.001,1,4750],
+  ["T5","T-5 铆锤","ATLAS","SG",    85,22, 8,24,0.070,9,2300],
+  ["N6","N-6 电弧","NOVA","AR",    700,33,28,10,0.012,1,2750],
+  ["N2","N-2 蜂群","NOVA","SMG",  1000,22,35, 7,0.018,1,1600],
+  ["N4","N-4 奇点","NOVA","SG",     65,19, 7,27,0.078,9,2200],
+  ["N9","N-9 相位","NOVA","SR",     60,88, 5,20,0.003,1,4400]
+].map(w => ({ id:w[0], name:w[1], maker:w[2], cat:w[3], rpm:w[4], dmg:w[5],
+              mag:w[6], heat:w[7], spread:w[8], pellets:w[9], price:w[10] }));
+
+/* ---------- 5 槽改装 ---------- */
+const SLOTS = [
+  { k:"muzzle", name:"枪口", opts:[{n:"无",e:{}},{n:"消焰器",e:{heat:-0.25}},
+      {n:"补偿器",e:{spread:-0.25}},{n:"制退器",e:{spread:-0.35,heat:0.15}}] },
+  { k:"barrel", name:"枪管", opts:[{n:"标准",e:{}},{n:"长枪管",e:{dmg:0.12,spread:-0.10}},
+      {n:"短枪管",e:{dmg:-0.10,spread:0.15}}] },
+  { k:"optic", name:"瞄具", opts:[{n:"机械瞄具",e:{}},{n:"红点",e:{spread:-0.12}},
+      {n:"全息",e:{spread:-0.18}},{n:"倍镜",e:{spread:-0.30}}] },
+  { k:"mag", name:"弹匣", opts:[{n:"标准",e:{}},{n:"扩容",e:{mag:0.5}},
+      {n:"快拔",e:{reload:-0.35}}] },
+  { k:"grip", name:"握把", opts:[{n:"无",e:{}},{n:"垂直握把",e:{spread:-0.15}},
+      {n:"前握把",e:{spread:-0.08,heat:-0.10}}] }
+];
+
+/* ---------- 4 级弹药 / 3 级护甲 ---------- */
+const AMMO = [
+  { n:"铅芯", pen:1.00, price:150 }, { n:"钢芯", pen:1.25, price:350 },
+  { n:"钨芯", pen:1.50, price:600 }, { n:"脱壳", pen:1.90, price:900 }
+];
+const ARMORS = [
+  { n:"无甲",   red:0.00, dur:0,   price:0 },
+  { n:"I 级",   red:0.20, dur:50,  price:400 },
+  { n:"II 级",  red:0.35, dur:75,  price:900 },
+  { n:"III 级", red:0.50, dur:100, price:1500 }
+];
+
+/* ---------- 副武器（§3.1：游泳态"只能用手枪/近战"） ---------- */
+// 设计文档写得很清楚：满潮没顶时不是完全缴械，而是降级到手枪。
+// 之前实现成"水里完全不能开火"，玩家在水里是纯待宰，与设计不符。
+const SIDEARMS = [
+  { id:"K1", name:"K-1 短刃", maker:"KESTREL", rpm:450, dmg:26, mag:12, heat:6, spread:0.020, price:300 },
+  { id:"V0", name:"V-0 铁砂", maker:"VOLGA",   rpm:380, dmg:34, mag:8,  heat:9, spread:0.028, price:400 },
+  { id:"N0", name:"N-0 火花", maker:"NOVA",    rpm:600, dmg:19, mag:18, heat:5, spread:0.024, price:500 }
+];
+
+/* ---------- 浮动集装箱（§3.1：随水位抬升，形成新的二层通路） ---------- */
+// 设计原话："浮动物体（集装箱、浮桥、平台）会随水位抬升，形成新的二层通路"。
+// 这是整个潮汐系统里最妙的一笔 —— 水涨上来不是单纯的路变少，
+// 而是旧路淹掉的同时，集装箱浮起来变成通往高地的新路。
+// 集装箱坐底时顶面 = 地面 + 箱高；水涨过箱高后改为浮在水面上。
+const FLOATERS = [
+  { x:32, z:26, w:6, h:6, box:0.7, free:0.55 },   // 干船坞北侧
+  { x:26, z:38, w:5, h:5, box:0.7, free:0.55 },   // 通往 B 点
+  { x:44, z:34, w:5, h:5, box:0.7, free:0.55 },   // 通往 A 点
+  { x:36, z:45, w:6, h:4, box:0.7, free:0.55 }    // 桥区东侧
+];
+
+function floaterTopAt(x, z, water) {
+  for (const f of FLOATERS) {
+    if (Math.abs(x - f.x) <= f.w/2 && Math.abs(z - f.z) <= f.h/2) {
+      const ground = heightAt(Math.floor(f.x), Math.floor(f.z));
+      return Math.max(ground + f.box, water + f.free);
+    }
+  }
+  return null;
+}
+// 实际站立面：地形标高，或踩在浮起的集装箱顶上（取高者）
+function groundHeightAt(x, z, water) {
+  const t = heightAt(Math.floor(x), Math.floor(z));
+  const f = floaterTopAt(x, z, water);
+  return f === null ? t : Math.max(t, f);
+}
+
+/* ---------- 经济（§7.2 原表） ---------- */
+const ECON = { start:800, kill:300, killCQB:400, assist:150,
+  plant:300, defuse:300, win:3250, loss:1400, lossStreak:[0,0,1900,2400,2900] };
+const SKILL_COST = [0, 600, 1200];
+
+/* ---------- 地图 / 规则 ---------- */
+const SITES = [{ name:"A", x:48, z:20 }, { name:"B", x:20, z:48 }];
+const ATK_SPAWN = { x:8, z:56 }, DEF_SPAWN = { x:56, z:8 };
+const PLANT_TIME = 3.0, DEFUSE_TIME = 7.0, FUSE_TIME = 35.0, SITE_RADIUS = 3.0;
+const WIN_SCORE = 13, SWITCH_ROUND = 12;
+
+/* ---------- 根据地 ---------- */
+const FACILITIES = [
+  { k:"stash",  n:"仓库扩容", d:"每级 +1 武器预设槽", max:4, cost:[400,900,1600,2600] },
+  { k:"bench",  n:"制造台",   d:"每级改装件效果 +5%", max:3, cost:[500,1100,2000] },
+  { k:"medbay", n:"医疗站",   d:"每级回合起始 +15 生命", max:3, cost:[450,1000,1800] },
+  { k:"intel",  n:"情报板",   d:"每级开局显示敌人 3s", max:2, cost:[600,1400] },
+  { k:"trader", n:"商人渠道", d:"每级全场价格 -8%", max:3, cost:[550,1200,2200] },
+  { k:"pod",    n:"安全舱",   d:"每级阵亡保留 25% 装备价值", max:2, cost:[700,1500] },
+  { k:"diving", n:"潜水装备", d:"每级涉水速度惩罚 -12%", max:3, cost:[500,1100,1900] }
+];
+
+/* ---------- 存档 ---------- */
+const SAVE_KEY = "tideline_save_v1";
+let SAVE = { tickets:0, fac:{}, matches:0, wins:0 };
+function loadSave() { try { const r = localStorage.getItem(SAVE_KEY);
+  if (r) SAVE = Object.assign(SAVE, JSON.parse(r)); } catch (e) {} }
+function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch (e) {} }
+function facLv(k) { return SAVE.fac[k] || 0; }
+function priceOf(p) { return Math.round(p * (1 - facLv("trader") * 0.08)); }
+
+/* ---------- 遥测 ---------- */
+const T = { session:"", events:[],
+  emit(ev, p) { p = p || {}; p.ts = Date.now(); p.session = this.session;
+    p.event = ev; p.t = g ? g.t : 0; p.round = M ? M.round : 0; this.events.push(p); },
+  toJSONL() { return this.events.map(e => JSON.stringify(e)).join("\n"); }
+};
+
+/* ---------- 状态 ---------- */
+let loadout = { op:0, wp:0, side:0, ar:1, ammo:0, skill:0,
+                att:{ muzzle:0, barrel:0, optic:0, mag:0, grip:0 } };
+let M = null, g = null;
+let pendingCredits = ECON.start;
+
+function effWeapon(idx) {
+  const W = WEAPONS[idx];
+  const e = { dmg:W.dmg, spread:W.spread, mag:W.mag, heat:W.heat, reload:1.2 };
+  const boost = 1 + facLv("bench") * 0.05;
+  for (const s of SLOTS) {
+    const o = s.opts[loadout.att[s.k] || 0]; if (!o || !o.e) continue;
+    if (o.e.dmg) e.dmg *= (1 + o.e.dmg * boost);
+    if (o.e.spread) e.spread *= (1 + o.e.spread * boost);
+    if (o.e.mag) e.mag = Math.round(e.mag * (1 + o.e.mag * boost));
+    if (o.e.heat) e.heat *= (1 + o.e.heat);
+    if (o.e.reload) e.reload *= (1 + o.e.reload);
+  }
+  if (W.pellets > 1 && OPERATORS[loadout.op].id === "cauldron") e.dmg *= 1.25;
+  return e;
+}
+
+function mkUnit(id, side, x, z, isPlayer, opIdx, wpIdx, arIdx, ammoIdx) {
+  const ar = ARMORS[arIdx], hpBonus = facLv("medbay") * 15;
+  return {
+    id, side, isPlayer, alive:true, x, z, aim: side === "atk" ? Math.PI : 0,
+    hp:100 + hpBonus, maxHp:100 + hpBonus,
+    armor:ar.dur, armorMax:ar.dur, armorRed:ar.red, arIdx,
+    opIdx, wpIdx, ammoIdx, ammo:WEAPONS[wpIdx].mag,
+    sideIdx: (Math.random()*SIDEARMS.length)|0, ammoS:0, cdS:0, reloadS:0,
+    heat:0, cd:0, reload:0, state:0, abCd:0, shieldT:0, still:0, slowT:0,
+    noise:0, marked:0, markedBy:-1, kills:0, deaths:0, dmgDealt:0, credits:0,
+    ai:{ mode:"advance", repick:0 }
+  };
+  u.ammoS = SIDEARMS[u.sideIdx].mag;
+  return u;
+}
+
+function newMatch() {
+  M = { round:1, scoreAtk:0, scoreDef:0, lossStreak:0, over:false, winner:null,
+        playerSide:"atk", swapped:false, history:[] };
+  pendingCredits = ECON.start;
+  return M;
+}
+
+function newRound() {
+  const side = M.playerSide;
+  const sp = side === "atk" ? ATK_SPAWN : DEF_SPAWN;
+  const esp = side === "atk" ? DEF_SPAWN : ATK_SPAWN;
+  const eside = side === "atk" ? "def" : "atk";
+  const units = [];
+  units.push(mkUnit(0, side, sp.x, sp.z, true, loadout.op, loadout.wp, loadout.ar, loadout.ammo));
+  for (let i = 1; i < 5; i++)
+    units.push(mkUnit(i, side, sp.x + (Math.random()-.5)*7, sp.z + (Math.random()-.5)*7, false,
+      (Math.random()*8)|0, (Math.random()*WEAPONS.length)|0, 1+((Math.random()*3)|0), (Math.random()*4)|0));
+  for (let i = 5; i < 10; i++)
+    units.push(mkUnit(i, eside, esp.x + (Math.random()-.5)*7, esp.z + (Math.random()-.5)*7, false,
+      (Math.random()*8)|0, (Math.random()*WEAPONS.length)|0, 1+((Math.random()*3)|0), (Math.random()*4)|0));
+  g = {
+    t:0, phase:LOW, phaseElapsed:0, water:0,
+    prep: M.round === 1 ? 30 : 15, over:false, result:null, reason:"",
+    units, tracers:[], pings:[], dmgNums:[], feed:[], ripples:[],
+    decoder:{ state:"carried", site:-1, timer:0, progress:0 },
+    shake:0, flash:0, muzzle:0, banner:null, net:null, covers:[], decoys:[],
+    plantHold:0, botPlant:0
+  };
+  return g;
+}
+
+/* ---------- 战斗 ---------- */
+function player() { return g ? g.units[0] : null; }
+function clampU(u) {
+  u.x = Math.max(.6, Math.min(GRID-.6, u.x));
+  u.z = Math.max(.6, Math.min(GRID-.6, u.z));
+}
+// 用"实际站立面"算水深 —— 踩在浮起的集装箱上就不算泡在水里，
+// 这正是集装箱能充当新通路的原因。
+function waterStateOf(u) {
+  return updateWaterState(u.state, depthAt(u.x, u.z));
+}
+function depthAt(x, z) {
+  return Math.max(0, g.water - groundHeightAt(x, z, g.water));
+}
+function unitSpeed(u) {
+  let m = SPEED_M[waterStateOf(u)];
+  const op = OPERATORS[u.opIdx];
+  if (op.id === "kestrel") m = 1 - (1 - m) * 0.5;
+  m += facLv("diving") * 0.12 * (1 - m);
+  let s = 5.2 * m;
+  if (op.id === "gannel") s *= 1.15;
+  if (op.id === "dredger" && u.hp < u.maxHp * 0.25) s *= 1.20;
+  if (u.slowT > 0) s *= 0.65;
+  return Math.max(0.6, s);
+}
+
+function damageUnit(src, tgt, raw) {
+  if (!tgt.alive) return;
+  let dmg = raw;
+  const pen = src ? AMMO[src.ammoIdx].pen : 1.0;
+  if (tgt.armor > 0) {
+    const red = Math.max(0, tgt.armorRed - (pen - 1.0) * 0.22);
+    dmg *= (1 - red);
+    tgt.armor = Math.max(0, tgt.armor - raw * 0.8);
+  }
+  if (tgt.shieldT > 0) dmg *= 0.2;
+  if (src && src.marked > 0 && src.markedBy === tgt.id) dmg *= 1.15;
+  tgt.hp -= dmg;
+  if (src) src.dmgDealt += dmg;
+  if (tgt.isPlayer) {
+    g.flash = Math.max(g.flash, .5); g.shake = Math.max(g.shake, 8); AUD.hurt();
+  } else if (src && src.isPlayer) {
+    if (tgt.alive) AUD.hitmark(); else AUD.kill();
+  }
+  g.dmgNums.push({ x:tgt.x, z:tgt.z, y:1.2, v:Math.round(dmg), life:.7 });
+  if (tgt.hp <= 0) killUnit(src, tgt);
+}
+
+function killUnit(src, tgt) {
+  tgt.alive = false; tgt.hp = 0; tgt.deaths++;
+  if (src) {
+    src.kills++;
+    const W = WEAPONS[src.wpIdx];
+    src.credits += (W.cat === "SMG" || W.cat === "SG") ? ECON.killCQB : ECON.kill;
+    if (src.isPlayer) {
+      g.feed.unshift({ text:"击杀 " + OPERATORS[tgt.opIdx].name, life:3 });
+      if (OPERATORS[src.opIdx].id === "dredger" && loadout.skill >= 1 &&
+          src.marked > 0 && src.markedBy === tgt.id)
+        src.hp = Math.min(src.maxHp, src.hp + 30);
+    }
+  }
+  if (OPERATORS[loadout.op].id === "ledger")
+    for (const u of g.units) if (u.side === tgt.side) u.credits += 150;
+  T.emit("kill", { by: src ? src.id : -1, tgt: tgt.id, side: tgt.side });
+  if (tgt.isPlayer) T.emit("player_death", {});
+}
+
+// side = true 时使用副武器。§3.1：水深 > 2.0m 进入游泳态，主武器收起，
+// 但仍可用手枪 —— 是"降级"不是"缴械"。
+function unitShoot(u, side) {
+  side = !!side;
+  if (u.state === 3 && !side) return;              // 游泳态主武器收起
+  const W = side ? SIDEARMS[u.sideIdx] : WEAPONS[u.wpIdx];
+  const eff = side ? { dmg:W.dmg, spread:W.spread, mag:W.mag, heat:W.heat, reload:1.0 }
+                   : effWeaponFor(u);
+  const aK = side ? "ammoS" : "ammo";
+  const cK = side ? "cdS" : "cd";
+  const rK = side ? "reloadS" : "reload";
+  if (u[cK] > 0 || u[aK] <= 0) return;
+  u[cK] = 60 / W.rpm; u[aK]--;
+  u.heat = Math.min(100, u.heat + eff.heat);
+  let spread = eff.spread * (1 + (u.heat / 100) * 4.5);
+  const op = OPERATORS[u.opIdx];
+  if (op.id === "bulwark" && u.still > 1.5) spread *= 0.75;
+  const shotH = groundHeightAt(u.x, u.z, g.water);
+  const sx = u.x + Math.sin(u.aim) * .7, sz = u.z - Math.cos(u.aim) * .7;
+  if (u.isPlayer) { g.muzzle = .5; g.shake = Math.max(g.shake, 2.2); }
+  let hitU = null;
+  const pellets = W.pellets || 1;
+  for (let p = 0; p < pellets; p++) {
+    const ang = u.aim + (Math.random()*2-1) * spread;
+    const dir = { x:Math.sin(ang), z:-Math.cos(ang) };
+    const hit = raycast(u, sx, sz, dir, 200, shotH);
+    g.tracers.push({ x1:sx, z1:sz, x2:hit.x, z2:hit.z, life:.06 });
+    if (hit.u && !hitU) hitU = hit.u;
+  }
+  if (hitU) {
+    g.pings.push({ x:hitU.x, z:hitU.z, life:.2 });
+    damageUnit(u, hitU, eff.dmg);
+  }
+  if (u.isPlayer) AUD.gun(side ? "PISTOL" : W.cat);
+  else if (Math.hypot(u.x - player().x, u.z - player().z) < 34) AUD.gun(W.cat || "PISTOL");
+  if (u[aK] <= 0) u[rK] = eff.reload;
+}
+
+// 玩家用全局改装，AI 用无改装基础值
+function effWeaponFor(u) {
+  if (u.isPlayer) return effWeapon(u.wpIdx);
+  const W = WEAPONS[u.wpIdx];
+  return { dmg:W.dmg, spread:W.spread, mag:W.mag, heat:W.heat, reload:1.2 };
+}
+
+function raycast(shooter, ox, oz, dir, maxD, shotH) {
+  let ex = ox + dir.x*maxD, ez = oz + dir.z*maxD, u = null;
+  for (let t = 0.4; t <= maxD; t += 0.4) {
+    const x = ox + dir.x*t, z = oz + dir.z*t;
+    if (x < 0 || x >= GRID || z < 0 || z >= GRID) { ex = x; ez = z; break; }
+    for (const o of g.units) {
+      if (!o.alive || o.side === shooter.side) continue;
+      if (Math.hypot(o.x-x, o.z-z) < 0.6) { u = o; ex = x; ez = z; break; }
+    }
+    if (u) break;
+    let blocked = false;
+    for (const c of g.covers)
+      if (Math.abs(x-c.x) < c.w/2 && Math.abs(z-c.z) < 0.6) { blocked = true; break; }
+    if (blocked) { ex = x; ez = z; break; }
+    if (sampleHeight(x, z) > shotH + 1.2) { ex = x; ez = z; break; }
+    ex = x; ez = z;
+  }
+  return { x:ex, z:ez, u };
+}
+
+/* ---------- 解码器 ---------- */
+function nearSite(u) {
+  for (let i = 0; i < SITES.length; i++)
+    if (Math.hypot(u.x - SITES[i].x, u.z - SITES[i].z) < SITE_RADIUS) return i;
+  return -1;
+}
+function handleDecoder(P, dt) {
+  const D = g.decoder;
+  const si = nearSite(P);
+  if (si < 0) { g.plantHold = 0; return; }
+  if (P.side === "atk" && D.state === "carried") {
+    g.plantHold += dt;
+    if (g.plantHold >= PLANT_TIME) {
+      D.state = "planted"; D.site = si; D.timer = FUSE_TIME; D.progress = 0;
+      for (const u of g.units) if (u.side === "atk") u.credits += ECON.plant;
+      g.banner = { text:"解码器已安放 · " + SITES[si].name + " 点",
+                   sub:FUSE_TIME + " 秒后完成上传", life:2.6 };
+      T.emit("plant", { site:SITES[si].name });
+      g.plantHold = 0;
+    }
+  } else if (P.side === "def" && D.state === "planted" && D.site === si) {
+    D.progress += dt / DEFUSE_TIME;
+    if (D.progress >= 1) {
+      D.state = "defused";
+      for (const u of g.units) if (u.side === "def") u.credits += ECON.defuse;
+      endRound("def", "解码器被拆除");
+    }
+  }
+}
+function updateDecoder(dt) {
+  const D = g.decoder;
+  if (D.state !== "planted") return;
+  D.timer -= dt;
+  if (g.net && OPERATORS[player().opIdx].id === "lamplight" && loadout.skill >= 2) {
+    // 流网 Lv3：持续伤害
+  }
+  if (D.timer <= 0) endRound("atk", "解码器完成上传");
+}
+
+/* ---------- AI ---------- */
+// §3.1：涉水噪音波纹。所有人涉水移动都会留下，敌人看得见（小地图不显示）。
+function spawnRipple(x, z, isEnemy) {
+  g.ripples.push({ x, z, life:1.2, max:1.2, enemy: !!isEnemy });
+  // §3.1 波纹"听得见"：自己 Always 听得到；敌人的只在近处听得见
+  const P = player();
+  if (!P) return;
+  const d = Math.hypot(x - P.x, z - P.z);
+  if (!isEnemy || d < 22) AUD.step(true, depthAt(x, z));
+}
+
+function updateBot(u, dt) {
+  u.state = waterStateOf(u);
+  if (u.cd > 0) u.cd -= dt;
+  if (u.cdS > 0) u.cdS -= dt;
+  if (u.reload > 0) { u.reload -= dt; if (u.reload <= 0) u.ammo = effWeaponFor(u).mag; }
+  if (u.reloadS > 0) { u.reloadS -= dt; if (u.reloadS <= 0) u.ammoS = SIDEARMS[u.sideIdx].mag; }
+  if (u.heat > 0) u.heat = Math.max(0, u.heat - 18*dt);
+  if (u.abCd > 0) u.abCd -= dt;
+  if (u.slowT > 0) u.slowT -= dt;
+  if (u.marked > 0) u.marked -= dt;
+
+  const D = g.decoder;
+  let near = null, nd = 1e9;
+  for (const o of g.units) {
+    if (!o.alive || o.side === u.side) continue;
+    const d = Math.hypot(o.x-u.x, o.z-u.z); if (d < nd) { nd = d; near = o; }
+  }
+
+  let tx, tz;
+  if (D.state === "planted") { tx = SITES[D.site].x; tz = SITES[D.site].z; }
+  else if (u.side === "atk") { const s = SITES[u.id % 2]; tx = s.x; tz = s.z; }
+  else { const s = SITES[(u.id+1) % 2]; tx = s.x; tz = s.z; }
+
+  if (near && nd < 20) {
+    u.aim = Math.atan2(near.x-u.x, -(near.z-u.z));
+    if (nd > 7 && u.state !== 3) {
+      const sp = unitSpeed(u);
+      u.x += (near.x-u.x)/nd * sp * dt; u.z += (near.z-u.z)/nd * sp * dt;
+    } else if (u.state === 3 ? u.reloadS <= 0 : u.reload <= 0) {
+      unitShoot(u, u.state === 3);   // 游泳态 AI 同样降级用手枪
+    }
+  } else {
+    const dx = tx-u.x, dz = tz-u.z, dl = Math.hypot(dx, dz);
+    if (dl > 1.0) {
+      const sp = unitSpeed(u);
+      u.x += dx/dl * sp * dt; u.z += dz/dl * sp * dt;
+      u.aim = Math.atan2(dx, -dz);
+    } else if (u.side === "atk" && D.state === "carried") {
+      g.botPlant += dt;
+      if (g.botPlant > PLANT_TIME * 2.2) {
+        const si = nearSite(u);
+        if (si >= 0) {
+          D.state = "planted"; D.site = si; D.timer = FUSE_TIME; D.progress = 0;
+          for (const o of g.units) if (o.side === "atk") o.credits += ECON.plant;
+          g.banner = { text:"解码器已安放 · " + SITES[si].name + " 点",
+                       sub:FUSE_TIME + " 秒后完成上传", life:2.4 };
+          T.emit("plant", { site:SITES[si].name });
+        }
+        g.botPlant = 0;
+      }
+    } else if (u.side === "def" && D.state === "planted") {
+      D.progress += dt / (DEFUSE_TIME * 2.2);
+      if (D.progress >= 1) { D.state = "defused"; endRound("def", "解码器被拆除"); }
+    }
+  }
+  // 满潮：防守方被淹时退向高地
+  if (u.side === "def" && g.water - sampleHeight(u.x,u.z) > 2.0) {
+    const hg = nearestHighGround(u.x, u.z, 25, g.water + 0.3);
+    u.x += (hg.x - u.x) * dt * 0.5; u.z += (hg.z - u.z) * dt * 0.5;
+  }
+  if (depthAt(u.x,u.z) > 0.3) {
+    u.noise -= dt;
+    if (u.noise <= 0) { u.noise = 0.34; spawnRipple(u.x, u.z, u.side !== player().side); }
+  } else u.noise = 0;
+  if (g.net && Math.hypot(u.x-g.net.x, u.z-g.net.z) < g.net.r) u.slowT = 0.4;
+  clampU(u);
+}
+
+/* ---------- 回合更新 ---------- */
+function update(dt) {
+  if (!g || g.over) return;
+  if (g.prep > 0) { g.prep -= dt; return; }
+  g.t += dt;
+
+  if (g.phase < HIGH) {
+    g.phaseElapsed += dt;
+    g.water = waterLevelAt(g.phase, g.phaseElapsed);
+    if (g.phaseElapsed >= PHASE_DUR[g.phase]) {
+      g.phase++; g.phaseElapsed = 0;
+      g.banner = { text:PHASE_NAME[g.phase],
+        sub: g.phase === RISING ? "低洼区开始淹没" : "只剩高地与浮桥", life:2.4 };
+      T.emit("phase_change", { to:g.phase });
+    }
+  } else g.water = PHASE_WATER[HIGH][1];
+
+  const P = player();
+  if (P.alive) {
+    let mvx=0, mvz=0;
+    if (using3D) {
+      // 第一人称：WASD 相对于视角 yaw 的前/右方向
+      const yaw=playerYaw, fx=Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=Math.sin(yaw);
+      if (keys.has("KeyW")) { mvx+=fx; mvz+=fz; }
+      if (keys.has("KeyS")) { mvx-=fx; mvz-=fz; }
+      if (keys.has("KeyD")) { mvx+=rx; mvz+=rz; }
+      if (keys.has("KeyA")) { mvx-=rx; mvz-=rz; }
+    } else {
+      // 俯视降级：沿世界轴移动
+      if (keys.has("KeyW")) mvz-=1; if (keys.has("KeyS")) mvz+=1;
+      if (keys.has("KeyA")) mvx-=1; if (keys.has("KeyD")) mvx+=1;
+    }
+    const L = Math.hypot(mvx, mvz);
+    if (L > 0) { const sp = unitSpeed(P); P.x += mvx/L*sp*dt; P.z += mvz/L*sp*dt; }
+    P.still = (L === 0) ? P.still + dt : 0;
+    clampU(P);
+    P.state = waterStateOf(P);
+
+    const eff = effWeaponFor(P);
+    const SD = SIDEARMS[P.sideIdx];
+    if (P.cd > 0) P.cd -= dt;
+    if (P.cdS > 0) P.cdS -= dt;
+    if (P.reload > 0) { P.reload -= dt; if (P.reload <= 0) P.ammo = eff.mag; }
+    if (P.reloadS > 0) { P.reloadS -= dt; if (P.reloadS <= 0) P.ammoS = SD.mag; }
+    if (P.heat > 0) P.heat = Math.max(0, P.heat - 18*dt);
+    if (P.abCd > 0) P.abCd -= dt;
+    if (P.shieldT > 0) P.shieldT -= dt;
+    if (P.slowT > 0) P.slowT -= dt;
+    if (P.marked > 0) P.marked -= dt;
+
+    if (keys.has("KeyR")) {
+      if (P.reload <= 0 && P.ammo < eff.mag) P.reload = eff.reload;
+      if (P.reloadS <= 0 && P.ammoS < SD.mag) P.reloadS = 1.0;
+    }
+    // §3.1：水深 > 2.0m 主武器收起，自动降级为手枪 —— 不是缴械
+    if (mouseDown || keys.has("Space")) {
+      if (P.state === 3) { if (P.reloadS <= 0) unitShoot(P, true); }
+      else if (P.reload <= 0) unitShoot(P, false);
+    }
+    if (keys.has("KeyE")) handleDecoder(P, dt); else g.plantHold = 0;
+
+    // §3.1：涉水移动产生持续噪音波纹，暴露位置（小地图不显示，但看得见）
+    if (L > 0 && depthAt(P.x, P.z) > 0.3) {
+      P.noise -= dt;
+      if (P.noise <= 0) { P.noise = 0.30; spawnRipple(P.x, P.z, false); }
+    } else P.noise = 0;
+  }
+
+  for (const u of g.units) if (!u.isPlayer && u.alive) updateBot(u, dt);
+
+  // 流网持续伤害
+  if (g.net && g.net.dps > 0) {
+    for (const u of g.units)
+      if (u.alive && u.side !== player().side && Math.hypot(u.x-g.net.x, u.z-g.net.z) < g.net.r)
+        damageUnit(null, u, g.net.dps * dt);
+  }
+
+  updateDecoder(dt);
+
+  for (let i = g.tracers.length-1; i>=0; i--) { g.tracers[i].life -= dt; if (g.tracers[i].life<=0) g.tracers.splice(i,1); }
+  for (let i = g.pings.length-1; i>=0; i--) { g.pings[i].life -= dt; if (g.pings[i].life<=0) g.pings.splice(i,1); }
+  for (let i = g.dmgNums.length-1; i>=0; i--) { const d=g.dmgNums[i]; d.life-=dt; d.y-=dt*1.1; if(d.life<=0) g.dmgNums.splice(i,1); }
+  for (let i = g.feed.length-1; i>=0; i--) { g.feed[i].life -= dt; if (g.feed[i].life<=0) g.feed.splice(i,1); }
+  for (let i = g.decoys.length-1; i>=0; i--) { g.decoys[i].life -= dt; if (g.decoys[i].life<=0) g.decoys.splice(i,1); }
+  for (let i = g.ripples.length-1; i>=0; i--) { g.ripples[i].life -= dt; if (g.ripples[i].life<=0) g.ripples.splice(i,1); }
+  for (let i = g.covers.length-1; i>=0; i--) { g.covers[i].life -= dt; if (g.covers[i].life<=0) g.covers.splice(i,1); }
+  if (g.net) { g.net.life -= dt; if (g.net.life <= 0) g.net = null; }
+  if (g.shake>0) g.shake = Math.max(0, g.shake - dt*26);
+  if (g.flash>0) g.flash = Math.max(0, g.flash - dt*2.2);
+  if (g.muzzle>0) g.muzzle = Math.max(0, g.muzzle - dt*14);
+  if (g.banner) { g.banner.life -= dt; if (g.banner.life<=0) g.banner = null; }
+
+  checkRoundEnd();
+}
+
+function waterLevelAt(ph, el) {
+  const r = PHASE_WATER[ph];
+  return r[0] + (r[1]-r[0]) * Math.max(0, Math.min(1, el / PHASE_DUR[ph]));
+}
+
+function checkRoundEnd() {
+  if (g.over) return;
+  const a = g.units.filter(u=>u.alive && u.side==="atk").length;
+  const d = g.units.filter(u=>u.alive && u.side==="def").length;
+  if (a === 0) { endRound("def", "进攻方全灭"); return; }
+  if (d === 0) { endRound("atk", "防守方全灭"); return; }
+  if (g.t >= ROUND_TIME) endRound("def", "时间耗尽，防守方守住");
+}
+
+function endRound(winnerSide, reason) {
+  if (g.over) return;
+  g.over = true; g.result = winnerSide; g.reason = reason;
+  const P = player();
+  const won = (P.side === winnerSide);
+  if (won) { M.lossStreak = 0; P.credits += ECON.win; }
+  else {
+    M.lossStreak++;
+    P.credits += ECON.loss + (ECON.lossStreak[Math.min(M.lossStreak,4)] || 0);
+  }
+  if (winnerSide === "atk") M.scoreAtk++; else M.scoreDef++;
+  SAVE.tickets += won ? 60 : 25; writeSave();
+  M.history.push({ r:M.round, w:winnerSide, reason });
+  T.emit("round_end", { winner:winnerSide, reason, score:M.scoreAtk+"-"+M.scoreDef });
+  if (M.scoreAtk >= WIN_SCORE || M.scoreDef >= WIN_SCORE) {
+    M.over = true; M.winner = M.scoreAtk >= WIN_SCORE ? "atk" : "def";
+    SAVE.matches++; if (M.winner === M.playerSide) SAVE.wins++; writeSave();
+  }
+  pendingCredits = P.credits;
+  showRoundEnd(won, reason);
+}
+
+/* ---------- 技能 ---------- */
+function useAbility() {
+  const P = player();
+  if (!P || !P.alive || P.abCd > 0 || g.over || g.prep > 0) return;
+  const op = OPERATORS[P.opIdx], lv = loadout.skill;
+  P.abCd = op.cd;
+  T.emit("ability", { op:op.id, lv });
+
+  if (op.id === "kestrel") {
+    const d = lv >= 1 ? 11 : 8;
+    P.x += Math.sin(P.aim)*d; P.z -= Math.cos(P.aim)*d; clampU(P);
+    if (lv >= 2) for (const u of g.units)
+      if (u.alive && u.side !== P.side && Math.hypot(u.x-P.x,u.z-P.z) < 4) u.slowT = 0.5;
+  } else if (op.id === "cauldron") {
+    const r = [5,7,9][lv], dmg = [60,85,110][lv];
+    g.shake = Math.max(g.shake, 12);
+    for (const u of g.units)
+      if (u.alive && u.side !== P.side && Math.hypot(u.x-P.x,u.z-P.z) < r) damageUnit(P, u, dmg);
+  } else if (op.id === "lamplight") {
+    g.net = { x:P.x, z:P.z, r: lv>=1?8.4:6, life: lv>=1?7:5, dps: lv>=2?12:0 };
+  } else if (op.id === "bulwark") {
+    g.covers.push({ x:P.x + Math.sin(P.aim)*1.6, z:P.z - Math.cos(P.aim)*1.6,
+                    w:3, life:20, hp: lv>=1?200:100 });
+  } else if (op.id === "skimmer") {
+    const n = lv>=1?2:1;
+    for (let i=0;i<n;i++)
+      g.decoys.push({ x:P.x+(Math.random()-.5)*10, z:P.z+(Math.random()-.5)*10, life:8 });
+  } else if (op.id === "gannel") {
+    const d = [12,18,25][lv];
+    P.x += Math.sin(P.aim)*d; P.z -= Math.cos(P.aim)*d; clampU(P);
+    if (lv >= 2) for (const u of g.units)
+      if (u.alive && u.side !== P.side && Math.hypot(u.x-P.x,u.z-P.z) < 5) {
+        u.x += (u.x-P.x)*.4; u.z += (u.z-P.z)*.4; clampU(u);
+      }
+  } else if (op.id === "ledger") {
+    P.ammo = effWeaponFor(P).mag;
+    P.hp = Math.min(P.maxHp, P.hp + [30,55,55][lv]);
+    if (lv >= 2) g.covers.push({ x:P.x, z:P.z, w:2.4, life:20, hp:150 });
+  } else if (op.id === "dredger") {
+    let best=null, bd=1e9;
+    for (const u of g.units) if (u.alive && u.side !== P.side) {
+      const d = Math.hypot(u.x-P.x,u.z-P.z); if (d<bd) { bd=d; best=u; }
+    }
+    if (best) { P.marked = 10; P.markedBy = best.id;
+      g.pings.push({ x:best.x, z:best.z, life:.6 }); }
+  }
+}
+
+/* ==========================================================================
+   渲染
+   ========================================================================== */
+const hudCanvas = document.getElementById("hud");
+const ctx = hudCanvas.getContext("2d");
+const sceneCanvas = document.getElementById("scene");
+let renderer=null, scene3d=null, camera3d=null;
+let using3D=false;
+let W=0,H=0,DPR=1,cellPx=16;
+const VIEW_CELLS = 40;
+let terrainCanvas=null, minimapCanvas=null;
+let screen = "menu";   // menu | loadout | base | end | play
+let playerYaw=0, playerPitch=0, pointerLocked=false;
+
+function buildTerrain() {
+  const S = 10;
+  const c = document.createElement("canvas");
+  c.width = GRID*S; c.height = GRID*S;
+  const gg = c.getContext("2d");
+  const stops=[[0,[40,46,53]],[.2,[46,52,60]],[1,[56,64,73]],
+               [1.8,[70,78,88]],[2.2,[86,94,104]],[3.9,[118,128,140]],[4,[124,134,146]]];
+  const col = h => {
+    for (let i=0;i<stops.length-1;i++) {
+      const a=stops[i], b=stops[i+1];
+      if (h>=a[0] && h<=b[0]) {
+        const f=(h-a[0])/((b[0]-a[0])||1);
+        return [0,1,2].map(k=>Math.round(a[1][k]+(b[1][k]-a[1][k])*f));
+      }
+    }
+    return stops[stops.length-1][1];
+  };
+  for (let z=0;z<GRID;z++) for (let x=0;x<GRID;x++) {
+    const h=heightAt(x,z);
+    const a=heightAt(x+1,z)-heightAt(x-1,z), b=heightAt(x,z+1)-heightAt(x,z-1);
+    const sh=Math.max(.6,Math.min(1.42,1-(a+b)*.2));
+    const rgb=col(h).map(v=>Math.min(255,Math.round(v*sh)));
+    gg.fillStyle="rgb("+rgb[0]+","+rgb[1]+","+rgb[2]+")";
+    gg.fillRect(x*S,z*S,S+1,S+1);
+  }
+
+  // ---- 程序化混凝土质感（板缝 / 颗粒 / 水渍 / 裂缝 / 锈迹）----
+  let _s = 1337;
+  const rnd = () => { _s = (_s*1103515245 + 12345) & 0x7fffffff; return _s/0x7fffffff; };
+
+  // 板缝（每 4 格一道施工缝）
+  gg.strokeStyle = "rgba(0,0,0,.22)"; gg.lineWidth = 1;
+  for (let i=0;i<=GRID;i+=4) {
+    gg.beginPath(); gg.moveTo(i*S,0); gg.lineTo(i*S,GRID*S); gg.stroke();
+    gg.beginPath(); gg.moveTo(0,i*S); gg.lineTo(GRID*S,i*S); gg.stroke();
+  }
+  // 颗粒噪声
+  for (let i=0;i<GRID*GRID*1.4;i++) {
+    const px=rnd()*GRID*S, py=rnd()*GRID*S;
+    const v=rnd();
+    gg.fillStyle = v<0.5 ? "rgba(0,0,0,"+(0.05+rnd()*0.06)+")"
+                         : "rgba(255,255,255,"+(0.04+rnd()*0.05)+")";
+    gg.fillRect(px,py,1,1);
+  }
+  // 水渍 / 氧化暗斑（低洼处更密）
+  for (let i=0;i<150;i++) {
+    const px=rnd()*GRID*S, py=rnd()*GRID*S;
+    const cellx=Math.floor(px/S), cellz=Math.floor(py/S);
+    const low = heightAt(cellx,cellz) < 1.5;
+    const r = (low?6:3) + rnd()*(low?14:8);
+    const g2 = gg.createRadialGradient(px,py,0,px,py,r);
+    g2.addColorStop(0,"rgba(20,30,38,"+(0.22+rnd()*0.18)+")");
+    g2.addColorStop(1,"rgba(20,30,38,0)");
+    gg.fillStyle=g2; gg.beginPath(); gg.arc(px,py,r,0,6.2832); gg.fill();
+  }
+  // 锈迹（高处金属外露处）
+  for (let i=0;i<60;i++) {
+    const px=rnd()*GRID*S, py=rnd()*GRID*S;
+    const cellx=Math.floor(px/S), cellz=Math.floor(py/S);
+    if (heightAt(cellx,cellz) < 3.0) continue;
+    const r = 3 + rnd()*9;
+    const g2 = gg.createRadialGradient(px,py,0,px,py,r);
+    g2.addColorStop(0,"rgba(150,82,40,"+(0.20+rnd()*0.20)+")");
+    g2.addColorStop(1,"rgba(150,82,40,0)");
+    gg.fillStyle=g2; gg.beginPath(); gg.arc(px,py,r,0,6.2832); gg.fill();
+  }
+  // 裂缝（随机折线）
+  gg.strokeStyle="rgba(0,0,0,.30)"; gg.lineWidth=1;
+  for (let i=0;i<40;i++) {
+    let x=rnd()*GRID*S, y=rnd()*GRID*S;
+    gg.beginPath(); gg.moveTo(x,y);
+    const seg=2+Math.floor(rnd()*3);
+    for (let j=0;j<seg;j++){ x+=(rnd()-.5)*40; y+=(rnd()-.5)*40; gg.lineTo(x,y); }
+    gg.stroke();
+  }
+  terrainCanvas=c;
+  const m=document.createElement("canvas"); m.width=GRID*2; m.height=GRID*2;
+  m.getContext("2d").drawImage(c,0,0,GRID*2,GRID*2);
+  minimapCanvas=m;
+}
+function resize() {
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  hudCanvas.width=Math.floor(W*DPR); hudCanvas.height=Math.floor(H*DPR);
+  hudCanvas.style.width=W+"px"; hudCanvas.style.height=H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  cellPx=Math.max(8,Math.min(W,H)/VIEW_CELLS);
+  if (renderer) { renderer.setSize(W,H,false); if (camera3d) { camera3d.aspect=W/H; camera3d.updateProjectionMatrix(); } }
+}
+
+function draw() {
+  if (using3D) {
+    ctx.clearRect(0,0,W,H);            // HUD 叠层透明，露出下方的 3D 场景
+    FP.render(performance.now()/1000);
+    drawHUD(); drawCrosshair(); drawVignette();
+    if (g && g.flash>0) {
+      ctx.fillStyle="rgba(200,40,30,"+(g.flash*.30).toFixed(3)+")";
+      ctx.fillRect(0,0,W,H);
+    }
+    return;
+  }
+  ctx.clearRect(0,0,W,H);
+  if (!g) return;
+  const P = player();
+  const camX = P.alive ? P.x : 32, camZ = P.alive ? P.z : 32;
+  const ox = W/2 - camX*cellPx + (g.shake?(Math.random()-.5)*g.shake:0);
+  const oz = H/2 - camZ*cellPx + (g.shake?(Math.random()-.5)*g.shake:0);
+  const tm = performance.now()/1000;
+
+  ctx.fillStyle="#05080c"; ctx.fillRect(0,0,W,H);
+  ctx.drawImage(terrainCanvas, ox, oz, GRID*cellPx, GRID*cellPx);
+
+  const z0=Math.max(0,Math.floor(camZ-VIEW_CELLS/2)-1), z1=Math.min(GRID-1,Math.ceil(camZ+VIEW_CELLS/2)+1);
+  const x0=Math.max(0,Math.floor(camX-VIEW_CELLS/2)-1), x1=Math.min(GRID-1,Math.ceil(camX+VIEW_CELLS/2)+1);
+  for (let z=z0;z<=z1;z++) for (let x=x0;x<=x1;x++) {
+    const d=g.water-heightAt(x,z); if (d<=.005) continue;
+    const a=Math.min(.82,.20+d*.24);
+    const wv=Math.sin(tm*1.7+x*.42+z*.31)*.5+.5;
+    ctx.fillStyle="rgba("+Math.round(26+wv*18)+","+Math.round(96+wv*30)+","+Math.round(150+wv*34)+","+a.toFixed(3)+")";
+    ctx.fillRect(ox+x*cellPx, oz+z*cellPx, cellPx+1, cellPx+1);
+    // 浅水边缘泡沫：与露出水面的相邻格之间画亮边
+    if (d < 1.3) {
+      const fa = Math.min(.55, .14 + (1.3 - d) * .42);
+      ctx.fillStyle = "rgba(205,232,246," + fa.toFixed(3) + ")";
+      const px=ox+x*cellPx, py=oz+z*cellPx;
+      if (g.water - heightAt(x-1,z) <= .005) ctx.fillRect(px, py, 1.4, cellPx);
+      if (g.water - heightAt(x+1,z) <= .005) ctx.fillRect(px+cellPx-1.4, py, 1.4, cellPx);
+      if (g.water - heightAt(x,z-1) <= .005) ctx.fillRect(px, py, cellPx, 1.4);
+      if (g.water - heightAt(x,z+1) <= .005) ctx.fillRect(px, py+cellPx-1.4, cellPx, 1.4);
+    }
+  }
+  // 水面整体反光带（随时间缓缓横移）
+  {
+    const band = ((tm * 14) % (W + 400)) - 200;
+    const rg = ctx.createLinearGradient(band, 0, band + 200, 0);
+    rg.addColorStop(0, "rgba(170,210,235,0)");
+    rg.addColorStop(0.5, "rgba(170,210,235,.05)");
+    rg.addColorStop(1, "rgba(170,210,235,0)");
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // 浮动集装箱（§3.1：随水位抬升，形成新的二层通路）
+  for (const f of FLOATERS) {
+    const top = floaterTopAt(f.x, f.z, g.water);
+    if (top === null) continue;
+    const ground = heightAt(Math.floor(f.x), Math.floor(f.z));
+    const lift = Math.min(1, (top - ground) / 3.5);
+    const px = ox + (f.x - f.w/2)*cellPx, py = oz + (f.z - f.h/2)*cellPx;
+    const w = f.w*cellPx, h = f.h*cellPx;
+    ctx.save();
+    // 浮得越高越亮 —— 提示"这条新路现在能走了"
+    ctx.fillStyle = "rgba(" + Math.round(92+lift*66) + "," +
+                    Math.round(80+lift*52) + "," + Math.round(58+lift*34) + ",.95)";
+    ctx.fillRect(px, py, w, h);
+    ctx.strokeStyle = "rgba(225,185,125," + (0.4 + lift*0.35).toFixed(2) + ")";
+    ctx.lineWidth = 1.5; ctx.strokeRect(px, py, w, h);
+    ctx.strokeStyle = "rgba(0,0,0,.20)"; ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(px, py + h*i/4); ctx.lineTo(px+w, py + h*i/4); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 涉水噪音波纹（§3.1：暴露位置，小地图不显示但看得见）
+  for (const r of g.ripples) {
+    const a = r.life / r.max;
+    const rad = (1 - a) * 1.9 + 0.25;
+    ctx.save();
+    ctx.strokeStyle = r.enemy ? "rgba(255,150,120," + (a*0.55).toFixed(2) + ")"
+                              : "rgba(180,230,255," + (a*0.42).toFixed(2) + ")";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(ox + r.x*cellPx, oz + r.z*cellPx, rad*cellPx, 0, 6.2832);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  for (let i=0;i<SITES.length;i++) {
+    const s=SITES[i], px=ox+s.x*cellPx, py=oz+s.z*cellPx;
+    const planted = g.decoder.state==="planted" && g.decoder.site===i;
+    ctx.save();
+    ctx.strokeStyle = planted?"rgba(255,110,90,.95)":"rgba(120,210,255,.6)";
+    ctx.lineWidth = planted?3:2;
+    ctx.beginPath(); ctx.arc(px,py,SITE_RADIUS*cellPx,0,6.2832); ctx.stroke();
+    ctx.fillStyle = planted?"rgba(255,110,90,.18)":"rgba(120,210,255,.08)";
+    ctx.beginPath(); ctx.arc(px,py,SITE_RADIUS*cellPx,0,6.2832); ctx.fill();
+    ctx.fillStyle = planted?"#ffb0a0":"#a8dcf5";
+    ctx.font="700 13px sans-serif"; ctx.textAlign="center";
+    ctx.fillText(s.name+" 点"+(planted?"  "+g.decoder.timer.toFixed(1)+"s":""), px, py-SITE_RADIUS*cellPx-6);
+    ctx.restore();
+  }
+
+  for (const c of g.covers) {
+    ctx.fillStyle="rgba(150,160,175,.85)";
+    ctx.fillRect(ox+(c.x-c.w/2)*cellPx, oz+(c.z-.4)*cellPx, c.w*cellPx, .8*cellPx);
+  }
+  if (g.net) {
+    ctx.save(); ctx.strokeStyle="rgba(120,255,220,.6)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(ox+g.net.x*cellPx, oz+g.net.z*cellPx, g.net.r*cellPx,0,6.2832); ctx.stroke();
+    ctx.fillStyle="rgba(120,255,220,.10)";
+    ctx.beginPath(); ctx.arc(ox+g.net.x*cellPx, oz+g.net.z*cellPx, g.net.r*cellPx,0,6.2832); ctx.fill();
+    ctx.restore();
+  }
+  for (const d of g.decoys) {
+    ctx.fillStyle="rgba(255,240,180,.32)";
+    ctx.beginPath(); ctx.arc(ox+d.x*cellPx, oz+d.z*cellPx, cellPx*.45,0,6.2832); ctx.fill();
+  }
+
+  for (const t of g.tracers) {
+    ctx.strokeStyle="rgba(255,226,150,"+(t.life/.06*.85).toFixed(2)+")"; ctx.lineWidth=1.8;
+    ctx.beginPath(); ctx.moveTo(ox+t.x1*cellPx, oz+t.z1*cellPx);
+    ctx.lineTo(ox+t.x2*cellPx, oz+t.z2*cellPx); ctx.stroke();
+  }
+  for (const p of g.pings) {
+    const a=p.life/.2;
+    ctx.strokeStyle="rgba(255,120,100,"+a.toFixed(2)+")"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(ox+p.x*cellPx, oz+p.z*cellPx, (1-a)*14+3,0,6.2832); ctx.stroke();
+  }
+
+  for (const u of g.units) {
+    if (!u.alive) continue;
+    const px=ox+u.x*cellPx, py=oz+u.z*cellPx;
+    const friend = u.side === P.side;
+    const reveal = (P.alive && OPERATORS[P.opIdx].id==="lamplight" && !friend &&
+                    Math.hypot(u.x-P.x,u.z-P.z)<15) ||
+                   (g.net && !friend && Math.hypot(u.x-g.net.x,u.z-g.net.z)<g.net.r);
+    ctx.save();
+    if (reveal) {
+      ctx.strokeStyle="rgba(120,255,220,.9)"; ctx.lineWidth=1.8;
+      ctx.beginPath(); ctx.arc(px,py,cellPx*.75,0,6.2832); ctx.stroke();
+    }
+    ctx.translate(px,py); ctx.rotate(u.aim);
+    if (u.isPlayer) {
+      ctx.fillStyle="#3da5ff";
+      ctx.beginPath(); ctx.arc(0,0,cellPx*.44,0,6.2832); ctx.fill();
+      ctx.strokeStyle="#0a1e2c"; ctx.lineWidth=1.6; ctx.stroke();
+      ctx.fillStyle="#dff2ff"; ctx.fillRect(cellPx*.10,-cellPx*.09,cellPx*.50,cellPx*.18);
+      if (g.muzzle>0) {
+        ctx.fillStyle="rgba(255,220,120,"+Math.min(1,g.muzzle).toFixed(2)+")";
+        ctx.beginPath(); ctx.moveTo(cellPx*.62,-cellPx*.16);
+        ctx.lineTo(cellPx*(.62+g.muzzle*1.3),0);
+        ctx.lineTo(cellPx*.62,cellPx*.16); ctx.closePath(); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = friend?"#5fd08a":"#ff5347";
+      ctx.beginPath(); ctx.arc(0,0,cellPx*.40,0,6.2832); ctx.fill();
+      ctx.strokeStyle="rgba(0,0,0,.5)"; ctx.lineWidth=1.4; ctx.stroke();
+      ctx.fillStyle="rgba(230,245,255,.9)"; ctx.fillRect(cellPx*.08,-cellPx*.07,cellPx*.42,cellPx*.14);
+    }
+    ctx.restore();
+    if (!u.isPlayer && u.hp<u.maxHp) {
+      ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(px-cellPx*.45, py-cellPx*.75, cellPx*.9, 3);
+      ctx.fillStyle = friend?"#5fd08a":"#ff7a6a";
+      ctx.fillRect(px-cellPx*.45, py-cellPx*.75, cellPx*.9*Math.max(0,u.hp/u.maxHp), 3);
+    }
+  }
+
+  ctx.save(); ctx.textAlign="center"; ctx.font="700 13px sans-serif";
+  for (const d of g.dmgNums) {
+    ctx.fillStyle="rgba(255,235,160,"+Math.min(1,d.life/.35).toFixed(2)+")";
+    ctx.fillText(d.v, ox+d.x*cellPx, oz+(d.z-d.y)*cellPx);
+  }
+  ctx.restore();
+
+  drawHUD(); drawCrosshair(); drawVignette();
+  if (g.flash>0) {
+    ctx.fillStyle="rgba(200,40,30,"+(g.flash*.30).toFixed(3)+")";
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+/* ---------- 主菜单动态背景：阴天港口（云 / 潮汐 / 灯塔） ---------- */
+function drawMenuBackground(t) {
+  const horizon = H * 0.54;
+  // 天空：阴冷钢蓝，上深下浅
+  let sky = ctx.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, "#0a141e");
+  sky.addColorStop(0.55, "#1c3346");
+  sky.addColorStop(1, "#39536a");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, horizon);
+
+  // 远处港口剪影（吊机 / 储罐 / 厂房）
+  ctx.fillStyle = "rgba(8,16,24,.72)";
+  ctx.fillRect(0, horizon - 46, W, 46);
+  ctx.fillStyle = "rgba(10,20,30,.85)";
+  const sil = (x, w, h) => ctx.fillRect(x, horizon - h, w, h);
+  sil(W*0.08, 30, 60); sil(W*0.08, 4, 92);
+  sil(W*0.20, 70, 40); sil(W*0.20, 70, 6);
+  sil(W*0.62, 54, 78); sil(W*0.62+54, 4, 30);
+  sil(W*0.74, 26, 50); sil(W*0.74+13, 60, 8);
+  sil(W*0.86, 90, 36);
+
+  // 阴云：多层半透明云团横向漂移 + 轻微起伏
+  const clouds = [
+    { x:0.16, y:0.14, w:0.40, h:0.06, sp:0.010, a:0.20 },
+    { x:0.50, y:0.10, w:0.52, h:0.07, sp:0.007, a:0.16 },
+    { x:0.78, y:0.20, w:0.36, h:0.05, sp:0.013, a:0.22 },
+    { x:0.34, y:0.24, w:0.30, h:0.045, sp:0.009, a:0.14 }
+  ];
+  for (const c of clouds) {
+    let cx = ((c.x + t * c.sp) % 1.3 - 0.15) * W;
+    const cy = c.y * horizon + Math.sin(t * 0.3 + c.x * 9) * 6;
+    const cw = c.w * W, ch = c.h * H;
+    let g2 = ctx.createRadialGradient(cx, cy, 0, cx, cy, cw * 0.6);
+    g2.addColorStop(0, "rgba(150,170,185," + c.a + ")");
+    g2.addColorStop(1, "rgba(150,170,185,0)");
+    ctx.fillStyle = g2;
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(1, ch / cw);
+    ctx.beginPath(); ctx.arc(0, 0, cw * 0.6, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  // 灯塔（右侧）
+  const lx = W * 0.93, ly = horizon - 4, lh = horizon * 0.62;
+  ctx.fillStyle = "rgba(14,24,34,.95)";
+  ctx.beginPath();
+  ctx.moveTo(lx - 9, ly); ctx.lineTo(lx - 6, ly - lh);
+  ctx.lineTo(lx + 6, ly - lh); ctx.lineTo(lx + 9, ly); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "rgba(220,230,238,.9)";
+  ctx.fillRect(lx - 7, ly - lh * 0.66, 14, lh * 0.10);
+  ctx.fillRect(lx - 7, ly - lh * 0.40, 14, lh * 0.10);
+  // 塔顶灯：呼吸闪烁
+  const lampY = ly - lh - 4, blink = 0.5 + 0.5 * Math.sin(t * 2.2);
+  let lg = ctx.createRadialGradient(lx, lampY, 0, lx, lampY, 46);
+  lg.addColorStop(0, "rgba(255,210,140," + (0.5 + 0.5 * blink) + ")");
+  lg.addColorStop(1, "rgba(255,180,90,0)");
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.arc(lx, lampY, 46, 0, 6.2832); ctx.fill();
+  // 旋转光束
+  const beam = t * 0.9;
+  ctx.save();
+  ctx.translate(lx, lampY);
+  for (let k = 0; k < 2; k++) {
+    const a = beam + k * Math.PI;
+    ctx.rotate(a);
+    let bg = ctx.createLinearGradient(0, 0, W * 0.5, 0);
+    bg.addColorStop(0, "rgba(255,225,170,.22)");
+    bg.addColorStop(1, "rgba(255,225,170,0)");
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.lineTo(W * 0.5, -26); ctx.lineTo(W * 0.5, 26); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  // 海面
+  let sea = ctx.createLinearGradient(0, horizon, 0, H);
+  sea.addColorStop(0, "#1c3a4e");
+  sea.addColorStop(1, "#070f17");
+  ctx.fillStyle = sea;
+  ctx.fillRect(0, horizon, W, H - horizon);
+
+  // 海浪：多层正弦波纹 + 反光带
+  ctx.strokeStyle = "rgba(150,200,225,.10)"; ctx.lineWidth = 1;
+  for (let r = 0; r < 7; r++) {
+    const yy = horizon + (r + 1) * (H - horizon) / 9;
+    const amp = 2 + r * 0.6, wl = 60 + r * 14, ph = t * (0.6 + r * 0.07) + r;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 10) {
+      const y = yy + Math.sin(x / wl + ph) * amp;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // 灯塔在水面的反光
+  ctx.save();
+  let refl = ctx.createLinearGradient(0, horizon, 0, H);
+  refl.addColorStop(0, "rgba(255,200,120," + (0.10 + 0.06 * blink) + ")");
+  refl.addColorStop(1, "rgba(255,200,120,0)");
+  ctx.fillStyle = refl;
+  ctx.fillRect(lx - 16, horizon, 32, H - horizon);
+  ctx.restore();
+
+  // 细雨：斜向飘落
+  ctx.strokeStyle = "rgba(180,210,230,.07)"; ctx.lineWidth = 1;
+  const rainN = 90, rs = (t * 520) % (H + 40);
+  for (let i = 0; i < rainN; i++) {
+    const rx = ((i * 137.5) % (W + 60)) - 30;
+    const ry = (i * 53 + rs) % (H + 40) - 20;
+    ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 6, ry + 14); ctx.stroke();
+  }
+
+  // 暗角
+  let vg = ctx.createRadialGradient(W/2, H*0.46, H*0.25, W/2, H*0.5, H*0.85);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,.55)");
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+}
+
+function drawCrosshair() {
+  const P=player(); if(!P) return;
+  const eff=effWeaponFor(P);
+  const sp=6+(P.heat/100)*34+eff.spread*260;
+  ctx.save(); ctx.strokeStyle="rgba(230,245,255,.85)"; ctx.lineWidth=1.6;
+  for (let i=0;i<4;i++) {
+    const a=i*Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(W/2+Math.cos(a)*sp, H/2+Math.sin(a)*sp);
+    ctx.lineTo(W/2+Math.cos(a)*(sp+7), H/2+Math.sin(a)*(sp+7));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawHUD() {
+  if (!g) return;
+  const P=player(), pad=22;
+
+  if (g.prep>0) {
+    ctx.save(); ctx.textAlign="center";
+    ctx.fillStyle="rgba(255,240,200,.95)"; ctx.font="800 28px sans-serif";
+    ctx.fillText("准备阶段  "+g.prep.toFixed(0)+"s", W/2, H*.26);
+    ctx.fillStyle="rgba(200,225,245,.8)"; ctx.font="600 14px sans-serif";
+    ctx.fillText("第 "+M.round+" 回合 · 比分 "+M.scoreAtk+" : "+M.scoreDef+
+                 " · 你是"+(P.side==="atk"?"进攻方":"防守方"), W/2, H*.26+26);
+    ctx.restore();
+  }
+
+  ctx.save(); ctx.textAlign="left";
+  ctx.fillStyle="rgba(8,14,20,.62)"; ctx.fillRect(pad-8,pad-8,268,96);
+  ctx.strokeStyle="rgba(110,180,220,.24)"; ctx.lineWidth=1;
+  ctx.strokeRect(pad-8,pad-8,268,96);
+  ctx.fillStyle="#eaf4ff"; ctx.font="700 16px sans-serif";
+  ctx.fillText("第 "+M.round+" 回合 · "+(P.side==="atk"?"进攻":"防守"), pad, pad+14);
+  ctx.fillStyle="#7fb0cc"; ctx.font="600 12px sans-serif";
+  ctx.fillText("比分 "+M.scoreAtk+" : "+M.scoreDef+"   剩 "+Math.max(0,ROUND_TIME-g.t).toFixed(0)+"s",
+               pad+150, pad+14);
+  ctx.fillStyle="#eaf4ff"; ctx.font="700 15px sans-serif";
+  ctx.fillText(PHASE_NAME[g.phase], pad, pad+37);
+  const bw=220,bh=9;
+  ctx.fillStyle="rgba(255,255,255,.10)"; ctx.fillRect(pad,pad+47,bw,bh);
+  const wf=Math.max(0,Math.min(1,g.water/3.2));
+  const grd=ctx.createLinearGradient(pad,0,pad+bw,0);
+  grd.addColorStop(0,"#2a7fb8"); grd.addColorStop(1,"#5fd0ff");
+  ctx.fillStyle=grd; ctx.fillRect(pad,pad+47,bw*wf,bh);
+  ctx.strokeStyle="rgba(160,220,255,.4)"; ctx.strokeRect(pad,pad+47,bw,bh);
+  ctx.fillStyle="rgba(255,255,255,.3)";
+  for (const h of [0.2,1.8,2.2,3.9]) ctx.fillRect(pad+bw*(h/3.2), pad+43, 1, bh+8);
+  ctx.fillStyle="#9fd4f0"; ctx.font="600 12px sans-serif";
+  ctx.fillText("水位 "+g.water.toFixed(2)+"m", pad, pad+73);
+  const dep=Math.max(0,g.water-sampleHeight(P.x,P.z));
+  ctx.fillStyle = P.state===3?"#ff8a6a":P.state===0?"#9fb2c2":"#ffd36a";
+  ctx.fillText(STATE_NAME[P.state]+(dep>0.01?" · 深 "+dep.toFixed(2)+"m":""), pad+96, pad+73);
+  ctx.restore();
+
+  const D=g.decoder;
+  if (D.state==="planted") {
+    ctx.save(); ctx.textAlign="center";
+    ctx.fillStyle="rgba(255,120,90,.95)"; ctx.font="700 17px sans-serif";
+    ctx.fillText("解码器 · "+SITES[D.site].name+" 点 · "+D.timer.toFixed(1)+"s", W/2, 34);
+    if (D.progress>0) {
+      ctx.fillStyle="rgba(255,255,255,.15)"; ctx.fillRect(W/2-90,42,180,6);
+      ctx.fillStyle="#5fd0ff"; ctx.fillRect(W/2-90,42,180*Math.min(1,D.progress),6);
+      ctx.fillStyle="#cfe6f5"; ctx.font="600 11px sans-serif";
+      ctx.fillText(P.side==="def"?"拆除中（按住 E）":"敌方正在拆除", W/2, 60);
+    }
+    ctx.restore();
+  } else if (P.side==="atk" && P.alive && nearSite(P)>=0) {
+    ctx.save(); ctx.textAlign="center";
+    ctx.fillStyle="rgba(120,255,170,.95)"; ctx.font="700 16px sans-serif";
+    ctx.fillText("按住 E 安放解码器  "+(g.plantHold/PLANT_TIME*100).toFixed(0)+"%", W/2, 34);
+    ctx.fillStyle="rgba(255,255,255,.15)"; ctx.fillRect(W/2-90,42,180,6);
+    ctx.fillStyle="#5ce08a"; ctx.fillRect(W/2-90,42,180*Math.min(1,g.plantHold/PLANT_TIME),6);
+    ctx.restore();
+  }
+
+  const atkA=g.units.filter(u=>u.alive&&u.side==="atk").length;
+  const defA=g.units.filter(u=>u.alive&&u.side==="def").length;
+  ctx.save(); ctx.textAlign="right"; ctx.font="700 15px sans-serif";
+  ctx.fillStyle="#ff8a7a"; ctx.fillText("进攻 "+atkA, W-pad-70, pad+14);
+  ctx.fillStyle="#7fc4ff"; ctx.fillText("防守 "+defA, W-pad, pad+14);
+  for (let i=0;i<g.feed.length;i++) {
+    ctx.fillStyle="rgba(230,245,255,"+Math.min(1,g.feed[i].life/1.2).toFixed(2)+")";
+    ctx.font="600 13px sans-serif";
+    ctx.fillText(g.feed[i].text, W-pad, pad+40+i*19);
+  }
+  ctx.restore();
+
+  if (g.banner) {
+    const a=Math.min(1,g.banner.life/.8);
+    ctx.save(); ctx.textAlign="center";
+    ctx.fillStyle="rgba(255,240,200,"+(a*.95).toFixed(2)+")";
+    ctx.font="800 32px sans-serif";
+    ctx.fillText(g.banner.text, W/2, H*.36);
+    ctx.fillStyle="rgba(200,225,245,"+(a*.8).toFixed(2)+")";
+    ctx.font="600 14px sans-serif";
+    ctx.fillText(g.banner.sub, W/2, H*.36+24);
+    ctx.restore();
+  }
+
+  ctx.save(); ctx.textAlign="left";
+  ctx.fillStyle="rgba(8,14,20,.62)"; ctx.fillRect(pad-8,H-pad-72,250,80);
+  ctx.strokeStyle="rgba(110,180,220,.24)"; ctx.strokeRect(pad-8,H-pad-72,250,80);
+  ctx.fillStyle="#8fa4b4"; ctx.font="600 12px sans-serif";
+  ctx.fillText("生命", pad, H-pad-52);
+  ctx.fillStyle="rgba(255,255,255,.10)"; ctx.fillRect(pad,H-pad-44,170,10);
+  ctx.fillStyle = P.hp>50?"#4fd98a":P.hp>22?"#ffc14d":"#ff5a4a";
+  ctx.fillRect(pad,H-pad-44,170*Math.max(0,P.hp/P.maxHp),10);
+  ctx.fillStyle="#e6ecf2"; ctx.font="700 12px sans-serif";
+  ctx.fillText(Math.max(0,Math.round(P.hp))+"", pad+178, H-pad-35);
+  if (P.armorMax>0) {
+    ctx.fillStyle="#8fa4b4"; ctx.fillText("护甲 "+ARMORS[P.arIdx].n, pad, H-pad-16);
+    ctx.fillStyle="rgba(255,255,255,.10)"; ctx.fillRect(pad+70,H-pad-24,100,8);
+    ctx.fillStyle="#7fc4ff"; ctx.fillRect(pad+70,H-pad-24,100*Math.max(0,P.armor/P.armorMax),8);
+  }
+  ctx.restore();
+
+  ctx.save(); ctx.textAlign="right";
+  ctx.fillStyle="rgba(8,14,20,.62)"; ctx.fillRect(W-pad-268,H-pad-88,276,96);
+  ctx.strokeStyle="rgba(110,180,220,.24)"; ctx.strokeRect(W-pad-268,H-pad-88,276,96);
+  const WP=WEAPONS[P.wpIdx], eff=effWeaponFor(P), SD=SIDEARMS[P.sideIdx];
+  const swimming = P.state === 3;
+  ctx.fillStyle="#8fa4b4"; ctx.font="600 11px sans-serif";
+  ctx.fillText(WP.name+" · "+AMMO[P.ammoIdx].n+"弹", W-pad, H-pad-70);
+  // 主武器：游泳态置灰（已收起）
+  ctx.fillStyle = swimming ? "#5b6b7a" : "#e6ecf2";
+  ctx.font="700 17px sans-serif";
+  ctx.fillText(P.reload>0?"换弹…":P.ammo+" / "+eff.mag, W-pad, H-pad-52);
+  // 副武器：游泳态高亮（此时唯一可用）
+  ctx.fillStyle = swimming ? "#ffd36a" : "#93a8b8";
+  ctx.font="600 12px sans-serif";
+  ctx.fillText("副 " + SD.name + "  " + (P.reloadS>0 ? "换弹…" : P.ammoS+" / "+SD.mag),
+               W-pad, H-pad-34);
+  ctx.fillStyle="rgba(255,255,255,.10)"; ctx.fillRect(W-pad-176,H-pad-26,174,6);
+  const hf=P.heat/100;
+  ctx.fillStyle = hf>.7?"#ff6a4a":hf>.4?"#ffa14d":"#ffd36a";
+  ctx.fillRect(W-pad-176,H-pad-26,174*hf,6);
+  const OP=OPERATORS[P.opIdx];
+  ctx.fillStyle = P.abCd<=0?"#5ce0a0":"#5b6b7a";
+  ctx.font="600 12px sans-serif";
+  ctx.fillText(OP.skill+" Lv"+(loadout.skill+1)+(P.abCd<=0?"  就绪 [Q]":"  "+P.abCd.toFixed(0)+"s"),
+               W-pad, H-pad-6);
+  ctx.fillStyle="#ffd36a";
+  ctx.fillText("⌾ "+Math.round(P.credits), W-pad, H-pad-80);
+  ctx.restore();
+
+  if (swimming && P.alive) {
+    ctx.save(); ctx.textAlign="center";
+    ctx.fillStyle="rgba(255,190,110,.95)"; ctx.font="700 15px sans-serif";
+    ctx.fillText("水深没顶 · 主武器收起，仅手枪可用", W/2, H-104);
+    ctx.restore();
+  }
+  drawMinimap();
+}
+
+function drawMinimap() {
+  const size=138,m=16,x0=W-size-m,y0=m+40;
+  ctx.save(); ctx.globalAlpha=.92;
+  ctx.fillStyle="rgba(6,10,16,.78)"; ctx.fillRect(x0-4,y0-4,size+8,size+8);
+  ctx.strokeStyle="rgba(110,180,220,.28)"; ctx.strokeRect(x0-4,y0-4,size+8,size+8);
+  ctx.drawImage(minimapCanvas,x0,y0,size,size);
+  const sc=size/GRID, P=player();
+  ctx.fillStyle="rgba(40,120,190,.42)";
+  for (let z=0;z<GRID;z++) for (let x=0;x<GRID;x++)
+    if (g.water-heightAt(x,z)>.6) ctx.fillRect(x0+x*sc,y0+z*sc,sc+.5,sc+.5);
+  for (const s of SITES) {
+    ctx.fillStyle="#78d2ff"; ctx.fillRect(x0+s.x*sc-2,y0+s.z*sc-2,4,4);
+  }
+  // 浮动集装箱：随水位浮起后在小地图上高亮，提示"新通路已开"
+  for (const f of FLOATERS) {
+    const top = floaterTopAt(f.x, f.z, g.water);
+    const ground = heightAt(Math.floor(f.x), Math.floor(f.z));
+    if (top !== null && top - ground > 1.2) {
+      ctx.fillStyle = "rgba(225,185,125,.85)";
+      ctx.fillRect(x0+(f.x-f.w/2)*sc, y0+(f.z-f.h/2)*sc, f.w*sc, f.h*sc);
+    }
+  }
+  for (const u of g.units) {
+    if (!u.alive) continue;
+    const show = u.isPlayer || u.side===P.side ||
+      (OPERATORS[P.opIdx].id==="lamplight" && Math.hypot(u.x-P.x,u.z-P.z)<15);
+    if (!show) continue;
+    ctx.fillStyle = u.isPlayer?"#7fd0ff":(u.side===P.side?"#5fd08a":"#ff5347");
+    ctx.fillRect(x0+u.x*sc-1.5, y0+u.z*sc-1.5, 3, 3);
+  }
+  ctx.restore();
+}
+
+function drawVignette() {
+  const P=player(); if(!P||!P.alive) return;
+  // 用 depthAt：站在浮起的集装箱上不算泡在水里，不该有水下压迫感
+  const dep = depthAt(P.x, P.z);
+  let a=0;
+  if (dep>.25) a=Math.min(.52,dep*.26);
+  if (g.phase===HIGH) a=Math.max(a,.20+Math.sin(performance.now()/380)*.05);
+  if (a<=.001) return;
+  const grd=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.30,W/2,H/2,Math.max(W,H)*.72);
+  grd.addColorStop(0,"rgba(10,60,110,0)");
+  grd.addColorStop(1,"rgba(10,60,120,"+a.toFixed(3)+")");
+  ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+}
+
+/* ==========================================================================
+   第一人称 3D 渲染（FP3D）
+   用 Three.js 把同一套 2D 模拟坐标（x, z 平面 + 标高 y）渲染成真正的第一人称。
+   地形 / 水面 / 浮动集装箱 / 站点 / 单位 / 枪械视图模型全部由模拟状态驱动。
+   若 THREE 不可用（离线 / 无 WebGL），using3D 保持 false，回退到原俯视 2D。
+   ========================================================================== */
+const FP = {
+  ok:false, unitMap:null,
+  init() {
+    if (this.ok || typeof THREE === "undefined") return;
+    try {
+      this.renderer = new THREE.WebGLRenderer({ canvas: sceneCanvas, antialias:true });
+      this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+      this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+      renderer = this.renderer;
+      this.scene = new THREE.Scene();
+      this.scene.background = new THREE.Color(0x0a141e);
+      this.scene.fog = new THREE.Fog(0x0e1a26, 34, 110);
+      this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
+      camera3d = this.camera;
+      this.scene.add(this.camera);
+      const hemi = new THREE.HemisphereLight(0xa8c2d6, 0x14202a, 0.95);
+      this.scene.add(hemi);
+      const dir = new THREE.DirectionalLight(0xfff1d6, 0.85);
+      dir.position.set(26, 48, 14);
+      this.scene.add(dir);
+      this.buildGround();
+      this.buildWater();
+      this.buildSites();
+      this.buildGun();
+      this.ok = true; using3D = true;
+    } catch (e) {
+      console.warn("[TIDELINE] 3D 初始化失败，回退俯视 2D：", e && e.message);
+      using3D = false; this.ok = false;
+    }
+  },
+  // 标高 -> 归一化颜色（与 2D 混凝土调色板一致）
+  hcol(h) {
+    const stops=[[0,[40,46,53]],[.2,[46,52,60]],[1,[56,64,73]],
+                 [1.8,[70,78,88]],[2.2,[86,94,104]],[3.9,[118,128,140]],[4,[124,134,146]]];
+    let c=stops[stops.length-1][1];
+    for (let i=0;i<stops.length-1;i++){ const a=stops[i],b=stops[i+1];
+      if (h>=a[0]&&h<=b[0]){ const f=(h-a[0])/((b[0]-a[0])||1);
+        c=[0,1,2].map(k=>Math.round(a[1][k]+(b[1][k]-a[1][k])*f)); break; } }
+    return [c[0]/255, c[1]/255, c[2]/255];
+  },
+  buildGround() {
+    const N = GRID, seg = GRID;
+    const geo = new THREE.PlaneGeometry(N, N, seg, seg);
+    geo.rotateX(-Math.PI/2);
+    const pos = geo.attributes.position;
+    const colors = [];
+    for (let i=0;i<pos.count;i++) {
+      const wx = pos.getX(i) + N/2, wz = pos.getZ(i) + N/2;
+      const h = heightAt(Math.max(0,Math.min(N-1,Math.round(wx))), Math.max(0,Math.min(N-1,Math.round(wz))));
+      pos.setX(i, wx); pos.setZ(i, wz); pos.setY(i, h);
+      const c = this.hcol(h); colors.push(c[0],c[1],c[2]);
+    }
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(colors,3));
+    const mat = new THREE.MeshLambertMaterial({ vertexColors:true, flatShading:true });
+    this.ground = new THREE.Mesh(geo, mat);
+    this.scene.add(this.ground);
+  },
+  buildWater() {
+    const geo = new THREE.PlaneGeometry(260, 260, 64, 64);
+    geo.rotateX(-Math.PI/2);
+    const mat = new THREE.MeshPhongMaterial({ color:0x1c5f8c, transparent:true, opacity:0.62, shininess:70 });
+    this.water = new THREE.Mesh(geo, mat);
+    this.scene.add(this.water);
+  },
+  buildSites() {
+    this.siteMeshes = SITES.map(s => {
+      const gh = heightAt(Math.round(s.x), Math.round(s.z));
+      const m = new THREE.Mesh(new THREE.TorusGeometry(SITE_RADIUS, 0.18, 8, 36),
+        new THREE.MeshBasicMaterial({ color:0x78d2ff }));
+      m.rotation.x = Math.PI/2; m.position.set(s.x, gh+0.08, s.z);
+      this.scene.add(m); return m;
+    });
+  },
+  buildGun() {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({ color:0x2a3138 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09,0.11,0.52), mat); g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.42),
+      new THREE.MeshLambertMaterial({ color:0x171c20 })); barrel.position.set(0,0.012,0.42); g.add(barrel);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.2,0.09), mat); grip.position.set(0,-0.13,0.08); g.add(grip);
+    g.position.set(0.22,-0.20,-0.5);
+    this.gun = g; this.camera.add(g);
+    const ml = new THREE.PointLight(0xffd27a, 0, 7); ml.position.set(0.22,-0.14,-0.78);
+    this.muzzleLight = ml; this.camera.add(ml);
+  },
+  makeUnit() {
+    const grp = new THREE.Group();
+    const bm = new THREE.MeshLambertMaterial({ color:0x5fd08a });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.62,1.2,0.36), bm); body.position.y=0.62; grp.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.27,12,10), bm); head.position.y=1.42; grp.add(head);
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.72),
+      new THREE.MeshLambertMaterial({ color:0x20262c })); gun.position.set(0.2,0.95,0.42); grp.add(gun);
+    grp.userData.bm = bm;
+    return grp;
+  },
+  syncUnits() {
+    if (!this.unitMap) this.unitMap = new Map();
+    const P = player();
+    for (const u of g.units) {
+      if (u.isPlayer) continue;            // 第一人称不画自己
+      let m = this.unitMap.get(u.id);
+      if (!m) { m = this.makeUnit(); this.unitMap.set(u.id, m); this.scene.add(m); }
+      if (!u.alive) { m.visible = false; continue; }
+      m.visible = true;
+      const gh = groundHeightAt(u.x, u.z, g.water);
+      m.position.set(u.x, gh, u.z);
+      m.rotation.y = Math.PI - u.aim;      // 模型朝向与模拟 facing 一致
+      const friend = u.side === P.side;
+      m.userData.bm.color.setHex(friend ? 0x5fd08a : 0xff5347);
+      const reveal = (OPERATORS[P.opIdx].id==="lamplight" && !friend &&
+                      Math.hypot(u.x-P.x,u.z-P.z)<15) ||
+                     (g.net && !friend && Math.hypot(u.x-g.net.x,u.z-g.net.z)<g.net.r);
+      m.userData.bm.emissive.setHex(reveal ? 0x103a34 : 0x000000);
+    }
+  },
+  renderCovers() {
+    if (!this.coverPool) { this.coverPool=[];
+      for (let i=0;i<8;i++) { const m=new THREE.Mesh(new THREE.BoxGeometry(1,2,0.6),
+        new THREE.MeshLambertMaterial({ color:0x96a0af })); m.visible=false; this.scene.add(m); this.coverPool.push(m); } }
+    let i=0;
+    for (const c of g.covers) { if (i>=this.coverPool.length) break;
+      const m=this.coverPool[i++]; m.visible=true;
+      const gh=groundHeightAt(c.x,c.z,g.water); m.position.set(c.x,gh+1.0,c.z); m.scale.set(c.w,1,1); }
+    for (;i<this.coverPool.length;i++) this.coverPool[i].visible=false;
+  },
+  renderFloaters() {
+    if (!this.floaterPool) {
+      this.floaterPool = FLOATERS.map(f => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(f.w, 2.4, f.h),
+          new THREE.MeshLambertMaterial({ color:0xb07a3c }));
+        this.scene.add(m); return m;
+      });
+    }
+    for (let i=0;i<FLOATERS.length;i++) {
+      const f = FLOATERS[i], top = floaterTopAt(f.x, f.z, g.water);
+      const m = this.floaterPool[i];
+      if (top === null) { m.visible=false; continue; }
+      m.visible = true; m.position.set(f.x, top - 1.2, f.z);
+      const lift = Math.min(1, (top - heightAt(Math.round(f.x),Math.round(f.z))) / 3.5);
+      m.material.color.setRGB(0.36 + lift*0.25, 0.30 + lift*0.20, 0.20 + lift*0.12);
+    }
+  },
+  renderTracers() {
+    if (!this.tracerLines) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(2*64*3),3));
+      this.tracerLines = new THREE.LineSegments(geo,
+        new THREE.LineBasicMaterial({ color:0xffe196, transparent:true, opacity:0.85 }));
+      this.tracerMax = 64; this.scene.add(this.tracerLines);
+    }
+    const arr = this.tracerLines.geometry.attributes.position.array;
+    let n=0;
+    for (const t of g.tracers) {
+      if (n>=this.tracerMax) break;
+      arr[n*6+0]=t.x1; arr[n*6+1]=1.5; arr[n*6+2]=t.z1;
+      arr[n*6+3]=t.x2; arr[n*6+4]=1.15; arr[n*6+5]=t.z2;
+      n++;
+    }
+    this.tracerLines.geometry.setDrawRange(0, n*2);
+    this.tracerLines.geometry.attributes.position.needsUpdate = true;
+    this.tracerLines.visible = n>0;
+  },
+  renderRipples() {
+    if (!this.ripplePool) { this.ripplePool=[];
+      for (let i=0;i<24;i++) { const m=new THREE.Mesh(new THREE.TorusGeometry(1,0.06,6,22),
+        new THREE.MeshBasicMaterial({ color:0xb4e6ff, transparent:true })); m.rotation.x=Math.PI/2;
+        m.visible=false; this.scene.add(m); this.ripplePool.push(m); } }
+    let i=0;
+    for (const r of g.ripples) { if (i>=this.ripplePool.length) break;
+      const m=this.ripplePool[i++]; m.visible=true;
+      const gh=groundHeightAt(r.x,r.z,g.water); m.position.set(r.x, gh+0.06, r.z);
+      const a=r.life/r.max, rad=(1-a)*1.9+0.25; m.scale.set(rad,rad,rad);
+      m.material.color.setHex(r.enemy?0xff9678:0xb4e6ff); m.material.opacity=a*0.6; }
+    for (;i<this.ripplePool.length;i++) this.ripplePool[i].visible=false;
+  },
+  render(t) {
+    if (!this.ok) return;
+    const P = player(); if (!P) return;
+    const gh = groundHeightAt(P.x, P.z, g.water);
+    const eye = gh + 1.62;
+    this.camera.position.set(P.x, eye, P.z);
+    const yaw = P.aim, pitch = playerPitch, horiz = Math.cos(pitch);
+    this.camera.lookAt(P.x + Math.sin(yaw)*horiz, eye + Math.sin(pitch), P.z - Math.cos(yaw)*horiz);
+
+    // 水面：随潮汐升降 + 轻微波动
+    if (this.water) {
+      this.water.position.y = g.water;
+      const pos = this.water.geometry.attributes.position, tm = t;
+      for (let i=0;i<pos.count;i++) {
+        const x=pos.getX(i), z=pos.getZ(i);
+        pos.setY(i, Math.sin(x*0.32 + tm*1.2)*0.07 + Math.cos(z*0.26 + tm*0.9)*0.07);
+      }
+      pos.needsUpdate = true;
+    }
+    for (let i=0;i<this.siteMeshes.length;i++) {
+      const planted = g.decoder.state==="planted" && g.decoder.site===i;
+      this.siteMeshes[i].material.color.setHex(planted ? 0xff6e5a : 0x78d2ff);
+    }
+    this.renderFloaters();
+    this.renderCovers();
+    this.syncUnits();
+    this.renderTracers();
+    this.renderRipples();
+
+    // 枪械后坐 + 枪口火光
+    const mz = g.muzzle > 0 ? g.muzzle : 0;
+    if (this.gun) { this.gun.position.z = -0.5 + mz*0.06; this.gun.position.y = -0.20 + mz*0.02; }
+    if (this.muzzleLight) this.muzzleLight.intensity = mz*7;
+
+    this.renderer.render(this.scene, this.camera);
+  }
+};
+
+function drawOverlay() { drawHUD(); drawCrosshair(); drawVignette(); }
+
+/* ---------- 程序化音频（§3.1：涉水噪音"听得见、看得见"）---------- */
+// 全部用 Web Audio API 实时合成，不依赖任何外部音频素材。
+// 设计文档把涉水噪音写成暴露位置的主要途径，且明确说"听得见"——
+// 所以音频不是锦上添花，是设计强制项。
+const AUD = {
+  ac:null, master:null, ambGain:null, noise:null, on:true, muted:false,
+  init() {
+    if (this.ac) return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) { this.on = false; return; }
+      this.ac = new Ctx();
+    } catch (e) { this.on = false; return; }
+    this.master = this.ac.createGain();
+    this.master.gain.value = 0.5;
+    this.master.connect(this.ac.destination);
+    const len = Math.floor(this.ac.sampleRate * 2);
+    const buf = this.ac.createBuffer(1, len, this.ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+    // 环境水声：低通白噪声，音量随水位上升
+    const src = this.ac.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const lp = this.ac.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 430;
+    this.ambGain = this.ac.createGain(); this.ambGain.gain.value = 0;
+    src.connect(lp); lp.connect(this.ambGain); this.ambGain.connect(this.master);
+    src.start();
+  },
+  resume() { if (this.ac && this.ac.state === "suspended") this.ac.resume(); },
+  ok() { return this.ac && this.on && !this.muted; },
+  burst(dur, f0, f1, gain, type) {
+    if (!this.ok()) return;
+    const t = this.ac.currentTime;
+    const src = this.ac.createBufferSource(); src.buffer = this.noise;
+    const flt = this.ac.createBiquadFilter();
+    flt.type = type || "bandpass";
+    flt.frequency.setValueAtTime(f0, t);
+    flt.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+    flt.Q.value = 1.1;
+    const g = this.ac.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    src.connect(flt); flt.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + dur + 0.02);
+  },
+  tone(freq, dur, gain, type, slideTo) {
+    if (!this.ok()) return;
+    const t = this.ac.currentTime;
+    const o = this.ac.createOscillator();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(30, slideTo), t + dur);
+    const g = this.ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  },
+  // 枪声：低频爆音 + 高频咔哒，重武器更低更长
+  gun(cat) {
+    const heavy = (cat === "SR" || cat === "DMR" || cat === "LMG" || cat === "SG");
+    this.burst(heavy ? 0.22 : 0.11, heavy ? 850 : 1600, heavy ? 80 : 240, heavy ? 0.5 : 0.34, "lowpass");
+    this.burst(0.05, 3200, 1300, 0.16, "highpass");
+  },
+  // 涉水脚步：水越深越闷越响 —— 这是暴露位置的主要途径
+  step(inWater, depth) {
+    if (inWater) this.burst(0.14, 620 + depth * 170, 220, Math.min(0.26, 0.14 + depth * 0.05), "bandpass");
+    else this.burst(0.05, 250, 105, 0.075, "lowpass");
+  },
+  hitmark() { this.tone(1550, 0.055, 0.2, "square"); },
+  kill() { this.tone(740, 0.09, 0.24, "square");
+           setTimeout(() => this.tone(1120, 0.12, 0.22, "square"), 70); },
+  plant()  { this.tone(400, 0.13, 0.2, "sawtooth", 640); },
+  defuse() { this.tone(920, 0.10, 0.2, "sine", 700); },
+  warn()   { this.tone(210, 0.55, 0.24, "triangle", 680); },
+  ability(){ this.tone(500, 0.16, 0.22, "triangle", 1000); },
+  hurt()   { this.burst(0.16, 380, 120, 0.3, "lowpass"); },
+  ui()     { this.tone(680, 0.04, 0.12, "sine"); },
+  setAmbient(water, swimming) {
+    if (!this.ok() || !this.ambGain) return;
+    const target = Math.min(0.15, water * 0.05) + (swimming ? 0.10 : 0);
+    this.ambGain.gain.setTargetAtTime(target, this.ac.currentTime, 0.5);
+  }
+};
+
+/* ---------- 输入 ---------- */
+const keys=new Set();
+let mouseDown=false, mouseX=0, mouseY=0;
+window.addEventListener("keydown", e => {
+  if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Tab"].includes(e.code)) e.preventDefault();
+  if (e.code==="KeyQ") useAbility();
+  keys.add(e.code);
+});
+window.addEventListener("keyup", e => keys.delete(e.code));
+window.addEventListener("blur", () => { keys.clear(); mouseDown=false; });
+// 第一人称：点击画面锁定鼠标并开火；未锁定时移动鼠标仅用于俯视降级瞄准
+sceneCanvas.addEventListener("mousedown", e => {
+  if (e.button!==0) return;
+  if (screen!=="play") return;
+  AUD.resume();
+  if (!pointerLocked && sceneCanvas.requestPointerLock) sceneCanvas.requestPointerLock();
+  mouseDown=true;
+});
+window.addEventListener("mouseup", e => { if (e.button===0) mouseDown=false; });
+window.addEventListener("mousemove", e => {
+  if (pointerLocked) {
+    playerYaw -= (e.movementX||0)*0.0024;
+    playerPitch -= (e.movementY||0)*0.0024;
+    if (playerPitch > 1.2) playerPitch=1.2; if (playerPitch < -1.2) playerPitch=-1.2;
+  } else { mouseX=e.clientX; mouseY=e.clientY; }
+});
+document.addEventListener("pointerlockchange", () => {
+  pointerLocked = (document.pointerLockElement === sceneCanvas);
+});
+window.addEventListener("contextmenu", e => e.preventDefault());
+window.addEventListener("resize", resize);
+
+/* ---------- 界面 ---------- */
+const $ = id => document.getElementById(id);
+let uiTab = "op";
+
+function renderMenu() {
+  $("profileStats").innerHTML = [
+    ["打捞券", SAVE.tickets], ["比赛场次", SAVE.matches],
+    ["胜场", SAVE.wins], ["当前干员", OPERATORS[loadout.op].name]
+  ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  $("modeTabs").innerHTML =
+    '<div class="tab sel">BREACH 破堤 · 5v5 · 先到 13 分</div>' +
+    '<div class="tab" style="opacity:.4;cursor:not-allowed">SALVAGE 打捞 · 规划中</div>' +
+    '<div class="tab" style="opacity:.4;cursor:not-allowed">SURGE 涌潮 · 规划中</div>';
+}
+
+function cardHTML(o) { return o; }
+
+function renderLoadout() {
+  const cr = pendingCredits;
+  $("loadTitle").textContent = "第 " + M.round + " 回合 · 配装与买入";
+  $("loadTabs").innerHTML = [["op","干员"],["wp","武器"],["gear","护甲/弹药/改装"]]
+    .map(t => '<div class="tab'+(uiTab===t[0]?" sel":"")+'" data-t="'+t[0]+'">'+t[1]+'</div>').join("");
+  document.querySelectorAll("#loadTabs .tab").forEach(el =>
+    el.addEventListener("click", () => { uiTab = el.dataset.t; renderLoadout(); }));
+
+  const l1=$("list1"), l2=$("list2"), l3=$("list3");
+  if (uiTab==="op") {
+    $("h1").textContent="干 员"; $("h2").textContent="主 武 器"; $("h3").textContent="护甲 / 弹药";
+    l1.innerHTML = OPERATORS.map((o,i)=>
+      '<div class="card'+(i===loadout.op?" sel":"")+'" data-k="op" data-i="'+i+'">'+
+      '<div class="n">'+o.name+'<em>'+o.code+' · '+o.cls+'</em></div>'+
+      '<div class="d"><b>'+o.passive+'</b> — '+o.pdesc+'</div>'+
+      '<div class="d"><b>'+o.skill+'</b> — '+o.sdesc+' · CD '+o.cd+'s</div></div>').join("");
+    l2.innerHTML = WEAPONS.map((w,i)=>{
+      const p=priceOf(w.price);
+      return '<div class="card'+(i===loadout.wp?" sel":"")+(cr>=p?"":" dis")+'" data-k="wp" data-i="'+i+'">'+
+      '<div class="n">'+w.name+'<em>'+w.maker+' · '+w.cat+'</em><span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+w.rpm+' RPM · '+w.dmg+' 伤害 · '+w.mag+' 发'+
+      (w.pellets>1?' · '+w.pellets+' 弹丸':'')+'</div></div>';
+    }).join("");
+    l3.innerHTML = ARMORS.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ar?" sel":"")+(cr>=p?"":" dis")+'" data-k="ar" data-i="'+i+'">'+
+      '<div class="n">'+a.n+'<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+(a.red>0?'减伤 '+Math.round(a.red*100)+'% · 耐久 '+a.dur:'无防护')+'</div></div>';
+    }).join("") + AMMO.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ammo?" sel":"")+(cr>=p?"":" dis")+'" data-k="am" data-i="'+i+'">'+
+      '<div class="n">'+a.n+' 弹<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">穿甲 ×'+a.pen.toFixed(2)+'</div></div>';
+    }).join("") + '<div class="d" style="color:#6f93aa;margin:8px 0 4px">副武器（游泳态唯一可用）</div>' +
+      SIDEARMS.map((s,i)=>{
+      const p=priceOf(s.price);
+      return '<div class="card'+(i===loadout.side?" sel":"")+(cr>=p?"":" dis")+'" data-k="sd" data-i="'+i+'">'+
+      '<div class="n">'+s.name+'<em>'+s.maker+'</em><span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+s.rpm+' RPM · '+s.dmg+' 伤害 · '+s.mag+' 发</div></div>';
+    }).join("");
+  } else if (uiTab==="wp") {
+    $("h1").textContent="武 器"; $("h2").textContent="枪 械 详 情"; $("h3").textContent="改 装 后 效 果";
+    l1.innerHTML = WEAPONS.map((w,i)=>{
+      const p=priceOf(w.price);
+      return '<div class="card'+(i===loadout.wp?" sel":"")+(cr>=p?"":" dis")+'" data-k="wp" data-i="'+i+'">'+
+      '<div class="n">'+w.name+'<em>'+w.cat+'</em><span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+w.maker+' · '+w.rpm+'RPM · '+w.dmg+'dmg</div></div>';
+    }).join("");
+    const w=WEAPONS[loadout.wp];
+    l2.innerHTML = '<div class="card sel"><div class="n">'+w.name+'<em>'+w.maker+'</em></div>'+
+      '<div class="d">类别 '+w.cat+'<br>射速 '+w.rpm+' RPM<br>伤害 '+w.dmg+
+      (w.pellets>1?' × '+w.pellets+' 弹丸':'')+'<br>弹匣 '+w.mag+
+      '<br>基础散布 '+w.spread+'<br>单发热量 '+w.heat+'</div></div>';
+    const e=effWeapon(loadout.wp);
+    l3.innerHTML = '<div class="card sel"><div class="n">装备效果</div><div class="d">'+
+      '伤害 '+e.dmg.toFixed(1)+'<br>散布 '+e.spread.toFixed(4)+
+      '<br>弹匣 '+e.mag+'<br>换弹 '+e.reload.toFixed(2)+'s</div></div>';
+  } else {
+    $("h1").textContent="护甲 / 弹药"; $("h2").textContent="5 槽 改 装"; $("h3").textContent="技 能 升 级";
+    l1.innerHTML = ARMORS.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ar?" sel":"")+(cr>=p?"":" dis")+'" data-k="ar" data-i="'+i+'">'+
+      '<div class="n">'+a.n+'<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">'+(a.red>0?'减伤 '+Math.round(a.red*100)+'% · 耐久 '+a.dur:'无防护')+'</div></div>';
+    }).join("") + AMMO.map((a,i)=>{
+      const p=priceOf(a.price);
+      return '<div class="card'+(i===loadout.ammo?" sel":"")+(cr>=p?"":" dis")+'" data-k="am" data-i="'+i+'">'+
+      '<div class="n">'+a.n+' 弹<span class="pr">⌾'+p+'</span></div>'+
+      '<div class="d">穿甲 ×'+a.pen.toFixed(2)+'</div></div>';
+    }).join("");
+    l2.innerHTML = SLOTS.map(s=>{
+      const cur=loadout.att[s.k]||0;
+      return '<div class="card sel"><div class="n">'+s.name+'</div>'+
+        s.opts.map((o,i)=>
+        '<div class="d pick" data-k="att" data-s="'+s.k+'" data-i="'+i+'" style="cursor:pointer;'+
+        'padding:3px 6px;margin:3px 0;border-radius:5px;'+
+        (i===cur?'background:rgba(110,200,255,.22);color:#dff0fb':'')+'">'+
+        (i===cur?'▸ ':'　')+o.n+'</div>').join("")+'</div>';
+    }).join("");
+    const op=OPERATORS[loadout.op];
+    l3.innerHTML = [0,1,2].map(l=>{
+      const c=SKILL_COST[l];
+      const ok = l<=loadout.skill || cr>=c;
+      return '<div class="card'+(l===loadout.skill?" sel":"")+(ok?"":" dis")+'" data-k="sk" data-i="'+l+'">'+
+      '<div class="n">'+op.skill+' Lv'+(l+1)+'<span class="pr">'+(c?('⌾'+c):'免费')+'</span></div>'+
+      '<div class="d">'+op.lv[l]+'</div></div>';
+    }).join("");
+  }
+
+  document.querySelectorAll("#list1 .card,#list2 .card,#list3 .card,#list2 .pick").forEach(c=>{
+    c.addEventListener("click", ev=>{
+      ev.stopPropagation();
+      const k=c.dataset.k; if(!k) return;
+      if (k==="op") loadout.op = +c.dataset.i;
+      else if (k==="wp") { const p=priceOf(WEAPONS[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.wp=+c.dataset.i; }
+      else if (k==="ar") { const p=priceOf(ARMORS[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.ar=+c.dataset.i; }
+      else if (k==="am") { const p=priceOf(AMMO[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.ammo=+c.dataset.i; }
+      else if (k==="sd") { const p=priceOf(SIDEARMS[+c.dataset.i].price);
+        if (pendingCredits<p) return; pendingCredits-=p; loadout.side=+c.dataset.i; }
+      else if (k==="att") loadout.att[c.dataset.s] = +c.dataset.i;
+      else if (k==="sk") { const l=+c.dataset.i;
+        if (l<loadout.skill || pendingCredits<SKILL_COST[l]) return;
+        pendingCredits-=SKILL_COST[l]; loadout.skill=l; }
+      renderLoadout();
+    });
+  });
+
+  $("loadStats").innerHTML = [
+    ["信用点","⌾ "+Math.round(pendingCredits)],
+    ["干员",OPERATORS[loadout.op].name+" · "+OPERATORS[loadout.op].cls],
+    ["主武器",WEAPONS[loadout.wp].name],
+    ["副武器",SIDEARMS[loadout.side].name+"（游泳态唯一可用）"],
+    ["护甲",ARMORS[loadout.ar].n],
+    ["弹药",AMMO[loadout.ammo].n+"（穿甲 ×"+AMMO[loadout.ammo].pen.toFixed(2)+"）"],
+    ["技能","Lv"+(loadout.skill+1)+" — "+OPERATORS[loadout.op].lv[loadout.skill]]
+  ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  $("loadHint").textContent =
+    "每回合起始 ⌾"+ECON.start+" · 击杀 +300（冲锋枪/霰弹 +400）· 胜利 +3250 · 失败 +1400 · "+
+    "安放/拆除 +300 · 技能 Lv2 ⌾600 / Lv3 ⌾1200";
+}
+
+function renderBase() {
+  $("facList").innerHTML = FACILITIES.map(f=>{
+    const lv=facLv(f.k), next = lv<f.max ? f.cost[lv] : null;
+    const bar=Array.from({length:f.max},(_,i)=>'<i class="'+(i<lv?"on":"")+'"></i>').join("");
+    return '<div class="card'+(next&&SAVE.tickets>=next?"":" dis")+'" data-f="'+f.k+'">'+
+      '<div class="n">'+f.n+'<span class="lvbar">'+bar+'</span></div>'+
+      '<div class="d">'+f.d+'</div>'+
+      '<div class="d">'+(next?'<b>升级 ⌾'+next+'</b>':'<b>已满级</b>')+'</div></div>';
+  }).join("");
+  document.querySelectorAll("#facList .card").forEach(c=>c.addEventListener("click",()=>{
+    const f=FACILITIES.find(x=>x.k===c.dataset.f);
+    const lv=facLv(f.k); if (lv>=f.max) return;
+    const cost=f.cost[lv]; if (SAVE.tickets<cost) return;
+    SAVE.tickets-=cost; SAVE.fac[f.k]=lv+1; writeSave(); renderBase();
+  }));
+  $("baseStats").innerHTML = [["打捞券",SAVE.tickets],["比赛场次",SAVE.matches],["胜场",SAVE.wins]]
+    .map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+}
+
+function showRoundEnd(won, reason) {
+  running=false;
+  const P=player();
+  $("verdict").textContent = M.over ? (M.winner===M.playerSide?"比赛胜利":"比赛失利")
+                                    : (won?"回合胜利":"回合失败");
+  $("verdict").className = "verdict "+((M.over ? (M.winner===M.playerSide) : won)?"win":"lose");
+  $("verdictSub").textContent = reason + " · 比分 " + M.scoreAtk + " : " + M.scoreDef;
+  $("statList").innerHTML = [
+    ["击杀",P.kills],["造成伤害",Math.round(P.dmgDealt)],
+    ["剩余生命",Math.max(0,Math.round(P.hp))+" / "+P.maxHp],
+    ["信用点","⌾ "+Math.round(P.credits)],
+    ["技能",OPERATORS[P.opIdx].skill+" Lv"+(loadout.skill+1)],
+    ["进度","第 "+M.round+" 回合 / 先到 "+WIN_SCORE+" 分"]
+  ].map(r=>"<div><span>"+r[0]+"</span><span>"+r[1]+"</span></div>").join("");
+  $("btnNext").style.display = M.over ? "none" : "";
+  $("btnEndMatch").textContent = M.over ? "返回主菜单" : "结束比赛";
+  $("exportHint").textContent = "已记录 "+T.events.length+" 条埋点。";
+  $("endScreen").classList.remove("hidden");
+}
+
+/* ---------- 流程 ---------- */
+let last=0, running=false;
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (!running || !g) {
+    if (sceneCanvas.style.display !== "none") sceneCanvas.style.display = "none";
+    drawMenuBackground(now/1000);
+    return;
+  }
+  const wantScene = using3D ? "block" : "none";
+  if (sceneCanvas.style.display !== wantScene) sceneCanvas.style.display = wantScene;
+  const dt=Math.min(0.05,(now-last)/1000||0);
+  last=now;
+  const P=player();
+  if (P.alive) P.aim = using3D ? playerYaw : Math.atan2(mouseX-W/2, -(mouseY-H/2));
+  update(dt);
+  draw();
+}
+
+function startRound() {
+  newRound();
+  const P=player();
+  P.credits = pendingCredits;
+  pendingCredits = 0;
+  // newRound() 里玩家用的是 loadout 的干员/主武器/护甲/弹药，此处补副武器
+  P.sideIdx = loadout.side;
+  P.ammoS = SIDEARMS[loadout.side].mag;
+  T.emit("round_start", { round:M.round, side:P.side, op:OPERATORS[loadout.op].id,
+    wp:WEAPONS[loadout.wp].id, side:SIDEARMS[loadout.side].id,
+    ar:loadout.ar, ammo:loadout.ammo, skill:loadout.skill });
+  $("loadScreen").classList.add("hidden");
+  $("endScreen").classList.add("hidden");
+  screen="play"; running=true; last=performance.now();
+}
+
+function nextRound() {
+  M.round++;
+  if (M.round === SWITCH_ROUND && !M.swapped) {
+    M.swapped = true;
+    M.playerSide = M.playerSide === "atk" ? "def" : "atk";
+  }
+  pendingCredits = player() ? player().credits : ECON.start;
+  $("endScreen").classList.add("hidden");
+  $("loadScreen").classList.remove("hidden");
+  renderLoadout();
+}
+
+$("btnDeploy").addEventListener("click", ()=>{
+  newMatch();
+  T.session = String(Date.now())+"_"+Math.floor(Math.random()*99999);
+  T.events = [];
+  T.emit("session_start", { op:OPERATORS[loadout.op].id });
+  $("menuScreen").classList.add("hidden");
+  $("loadScreen").classList.remove("hidden");
+  renderLoadout();
+});
+$("btnBackMenu").addEventListener("click", ()=>{
+  $("loadScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  renderMenu();
+});
+$("btnBase").addEventListener("click", ()=>{
+  $("menuScreen").classList.add("hidden");
+  $("baseScreen").classList.remove("hidden");
+  renderBase();
+});
+$("btnBaseBack").addEventListener("click", ()=>{
+  $("baseScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  renderMenu();
+});
+$("btnReady").addEventListener("click", startRound);
+$("btnNext").addEventListener("click", nextRound);
+$("btnEndMatch").addEventListener("click", ()=>{
+  $("endScreen").classList.add("hidden");
+  $("menuScreen").classList.remove("hidden");
+  renderMenu();
+});
+$("btnExport").addEventListener("click", ()=>{
+  const blob=new Blob([T.toJSONL()],{type:"application/jsonl"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="tideline_"+T.session+".jsonl";
+  a.click(); URL.revokeObjectURL(a.href);
+  $("exportHint").textContent="已导出 tideline_"+T.session+".jsonl";
+});
+
+loadSave();
+buildTerrain();
+resize();
+FP.init();                 // 尝试建立 WebGL 第一人称场景；失败则回退俯视 2D
+renderMenu();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
