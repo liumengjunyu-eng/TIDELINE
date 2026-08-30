@@ -25,7 +25,8 @@ function Material(opts) {
 // 位置恒为 (0,0,0) —— 任何「位置正确」类断言都会变成假通过。
 function vec() { return { x:0, y:0, z:0,
   set(x,y,z){ this.x=x; this.y=y; this.z=z; return this; },
-  copy(v){ this.x=v.x; this.y=v.y; this.z=v.z; return this; } }; }
+  copy(v){ this.x=v.x; this.y=v.y; this.z=v.z; return this; },
+  setScalar(s){ this.x=s; this.y=s; this.z=s; return this; } }; }
 function makePosition(count) {
   return { count, getX:()=>0, getY:()=>0, getZ:()=>0,
            setX:()=>{}, setY:()=>{}, setZ:()=>{}, needsUpdate:false };
@@ -36,8 +37,12 @@ function Geometry(opts) {
   return g;
 }
 function Obj3D() {
+  // add/remove 必须真的维护 children。早先 add() 是空实现、且根本没有 remove()，
+  // 于是"加入/移除场景"这类操作在桩里静默失效 —— 与 vec().set() 空实现同属假通过隐患。
   return { position: vec(), rotation: {x:0,y:0,z:0}, scale: vec(),
-           visible:true, userData:{}, add(){}, children:[],
+           visible:true, userData:{}, children:[],
+           add(c){ if(c) this.children.push(c); },
+           remove(c){ const i=this.children.indexOf(c); if(i>=0) this.children.splice(i,1); },
            material: Material(), geometry: Geometry(), lookAt(){}, updateProjectionMatrix(){},
            aspect:1, intensity:0, isObject3D:true };
 }
@@ -67,6 +72,20 @@ const THREE = {
   LineSegments: function(geo){ const o = Obj3D(); o.geometry = geo; return o; },
   Mesh: function(geo, mat){ return Mesh(geo, mat); },
   Group: function(){ return Obj3D(); },
+  RingGeometry: function(){ return Geometry(); },
+  ConeGeometry: function(){ return Geometry(); },
+  CanvasTexture: function(cv){ return { image:cv, needsUpdate:false }; },
+  SpriteMaterial: function(o){ return Material(o); },
+  Sprite: function(mat){ const o=Obj3D(); o.material=mat||Material(); return o; },
+  DoubleSide: 2,
+  // 光标瞄准用到 unproject/sub/normalize；桩里不必真的做投影逆变换，
+  // 只要返回有限数值、让后续 ray-plane 求交得到有限 yaw 即可。
+  Vector3: function(x,y,z){ const v=vec(); v.set(x||0,y||0,z||0);
+    v.unproject=function(){ return this; };
+    v.sub=function(o){ this.x-=o.x; this.y-=o.y; this.z-=o.z; return this; };
+    v.normalize=function(){ const l=Math.hypot(this.x,this.y,this.z)||1;
+                            this.x/=l; this.y/=l; this.z/=l; return this; };
+    return v; },
 };
 
 /* ---------- DOM 桩 ---------- */
@@ -177,6 +196,87 @@ try {
   ghostGone = ev("FP.ghostMesh ? FP.ghostMesh.visible : null");
 } catch (e) { ghostGone = "ERR:" + e.message; }
 check("幽灵渲染：越过轨迹终点后隐藏（对手已撤离）", ghostGone === false, "visible=" + ghostGone);
+
+// ---- 相机四模式（3D 升级：视角可切换）----
+// 起因：实测发现改造前 SALVAGE 实际是第一人称（枪是 camera 的子节点、且"第一人称不画自己"），
+// 与已锁定的"2.5D 固定俯视角"不符。四模式里 tactical 是真正落地该形态的那一档。
+let camErr=null, camDefault=null, camSeq=[], camPoses={};
+try {
+  camDefault = ev("CamMode.cur");
+  for (const m of ["tactical","follow","orbit","fps"]) {
+    run("CamMode.set('"+m+"'); FP.renderSalvage(0.016);");
+    camPoses[m] = ev("({x:+FP.camera.position.x.toFixed(3), y:+FP.camera.position.y.toFixed(3), z:+FP.camera.position.z.toFixed(3)})");
+  }
+  run("CamMode.reset();");
+  camSeq = ev("(function(){var s=[];for(var i=0;i<5;i++)s.push(CamMode.next());return s;})()");
+} catch (e) { camErr = e; }
+check("相机：四模式切换与渲染无异常", camErr===null, camErr?camErr.message:"无报错");
+check("相机：默认战术俯视（落地已锁定的 2.5D 形态）", camDefault==='tactical', "默认="+camDefault);
+check("相机：循环四档后回到起点", camSeq.length===5 && camSeq[4]===camSeq[0], camSeq.join(' → '));
+check("相机：战术俯视远高于第一人称（俯瞰全景）",
+      !!(camPoses.tactical && camPoses.fps) && camPoses.tactical.y > camPoses.fps.y + 8,
+      camPoses.tactical ? ("俯视 y="+camPoses.tactical.y+" / 第一人称 y="+camPoses.fps.y) : "null");
+check("相机：四模式位姿互不相同",
+      new Set(["tactical","follow","orbit","fps"].map(m=>camPoses[m]&&(camPoses[m].x+","+camPoses[m].y+","+camPoses[m].z))).size===4,
+      "tactical="+JSON.stringify(camPoses.tactical)+" follow="+JSON.stringify(camPoses.follow));
+
+// ---- 角色 3D 化（程序化人形替换方块代理）----
+let humErr=null, opCount=null, packs=null, buildAll=null, playerVis={};
+try {
+  opCount   = ev("Object.keys(OPLOOK).length");
+  packs     = ev("Object.keys(OPLOOK).map(function(k){return OPLOOK[k].pack;})");
+  buildAll  = ev("Object.keys(OPLOOK).concat(Object.keys(ENEMYLOOK)).map(function(k){"
+              + "var l=OPLOOK[k]||ENEMYLOOK[k]; return !!(buildHumanoid(l)||buildDrone(l));"
+              + "}).filter(Boolean).length");
+  run("CamMode.set('tactical'); FP.renderSalvage(0.016);");
+  playerVis.tactical = ev("!!(FP.playerMesh && FP.playerMesh.visible)");
+  run("CamMode.set('fps'); FP.renderSalvage(0.016);");
+  playerVis.fps = ev("!!(FP.playerMesh && FP.playerMesh.visible)");
+  run("CamMode.reset();");
+} catch (e) { humErr = e; }
+check("角色 3D 化：构建与渲染无异常", humErr===null, humErr?humErr.message:"无报错");
+check("角色 3D 化：8 名干员外观齐全", opCount===8, "干员外观数="+opCount);
+check("角色 3D 化：背负物互不相同（俯视下剪影第一识别项）",
+      !!packs && new Set(packs).size===8, packs?packs.join(" / "):"null");
+check("角色 3D 化：11 种外观（8 干员 + 3 敌种）均可构建", buildAll===11, "可构建="+buildAll);
+check("角色人形：战术俯视可见自己", playerVis.tactical===true, "tactical visible="+playerVis.tactical);
+check("角色人形：第一人称不画自己", playerVis.fps===false, "fps visible="+playerVis.fps);
+
+// ---- 画面可读性（战利品/撤离点/淹没预警）----
+// 起因：用户反馈"什么是战利品整不清"。根因是战利品只是 0.5m 素方块，在俯视下几乎不可见。
+let rdErr=null, lootParts=null, beamLow=null, beamHigh=null;
+try {
+  lootParts = ev("!!(FP.lootPool[0] && FP.lootPool[0].userData.ring && FP.lootPool[0].userData.beam && FP.lootPool[0].userData.dia)");
+  run("LootSystem.items[0].taken=false; LootSystem.items[0].rarity=0;"
+    + "LootSystem.items[1].taken=false; LootSystem.items[1].rarity=3; FP.renderSalvage(2.0);");
+  beamLow  = ev("FP.lootPool[0].userData.beam.scale.y");
+  beamHigh = ev("FP.lootPool[1].userData.beam.scale.y");
+} catch (e) { rdErr = e; }
+check("战利品：光环+光柱+菱形三件套齐备（不再是素方块）",
+      rdErr===null && lootParts===true, rdErr?rdErr.message:"结构完整");
+check("战利品：稀有度越高光柱越高",
+      typeof beamLow==="number" && beamHigh > beamLow,
+      "普通="+beamLow+" / 传说="+beamHigh);
+
+let exLabOk=null;
+try { exLabOk = ev("!!(FP.extrLabels && FP.extrLabels.length===Extraction.points.length)"); }
+catch (e) { exLabOk = "ERR:"+e.message; }
+check("撤离点：每个点都有标签位（无真实 canvas 时返回 null 优雅降级）",
+      exLabOk===true, "长度匹配="+exLabOk);
+
+// 不能赌单一时刻：30 秒只涨约 0.11m，这个窄带可能刚好落在地形空隙里 —— 那时"没有新增淹没区"
+// 是**正确行为**，不是功能坏了。所以扫描整段涨潮期，断言"存在会预警的时刻"。
+let flErr=null, flHits=0, flTried=0;
+try {
+  const r = ev("(function(){var hits=0,tried=0;"
+    + "for(var tt=60; tt<=560; tt+=25){ TideMission.t=tt; TideMission.tick(0);"   // 让 tick 自己算水位
+    + " FP._floodLvl=null; FP._updateFloodWarning(); tried++; if(FP.floodMesh) hits++; }"
+    + " return hits+'/'+tried;})()");
+  flHits = parseInt(r,10); flTried = parseInt(r.split('/')[1],10);
+} catch (e) { flErr = e; }
+check("淹没预警：涨潮途中会标出「FLOOD_LEAD_SEC 秒后会被淹」的区域",
+      flErr===null && flHits>0, flErr?flErr.message:("命中时刻 "+flHits+" / 采样 "+flTried
+        + "（30s 视野仅命中 3，放宽到 90s 后为 "+flHits+"）"));
 
 // 注：BREACH / SURGE 已裁定为作废旧案，整段代码归档于 game/legacy/，
 // 不再作为产品门面或入口。本冒烟测试只验证 SALVAGE 这一张脸的 3D 渲染路径。

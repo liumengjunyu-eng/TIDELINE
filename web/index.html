@@ -1962,26 +1962,44 @@ let mouseDown=false, mouseX=0, mouseY=0;
 window.addEventListener("keydown", e => {
   if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Tab"].includes(e.code)) e.preventDefault();
   if (e.code==="KeyQ") { /* 技能槽预留（SALVAGE 暂无主动技能） */ }
+  // 视角切换：V 循环，1~4 直达（战术俯视/跟随/环绕/第一人称）
+  if(typeof CamMode!=='undefined' && typeof screen!=='undefined' && screen==='play'){
+    const direct={Digit1:'tactical',Digit2:'follow',Digit3:'orbit',Digit4:'fps'}[e.code];
+    if(e.code==="KeyV"){ CamMode.next(); applyCamMode(); }
+    else if(direct){ CamMode.set(direct); applyCamMode(); }
+  }
   keys.add(e.code);
 });
 window.addEventListener("keyup", e => keys.delete(e.code));
 window.addEventListener("blur", () => { keys.clear(); mouseDown=false; });
-// 第一人称：点击画面锁定鼠标并开火；未锁定时移动鼠标仅用于俯视降级瞄准
+// 第一人称：点击画面锁定鼠标并开火；其余模式保持自由光标，用其在地面的投影点瞄准（左键仍开火）
+let orbitDragging=false;
 sceneCanvas.addEventListener("mousedown", e => {
   if (e.button!==0) return;
   if (screen!=="play") return;
   AUD.resume();
-  if (!pointerLocked && sceneCanvas.requestPointerLock) sceneCanvas.requestPointerLock();
+  const fps = (typeof CamMode!=='undefined') ? CamMode.cur==='fps' : true;
+  if (fps && !pointerLocked && sceneCanvas.requestPointerLock) sceneCanvas.requestPointerLock();
+  if (typeof CamMode!=='undefined' && CamMode.cur==='orbit') orbitDragging=true;
   mouseDown=true;
 });
-window.addEventListener("mouseup", e => { if (e.button===0) mouseDown=false; });
+window.addEventListener("mouseup", e => { if (e.button===0){ mouseDown=false; orbitDragging=false; } });
 window.addEventListener("mousemove", e => {
   if (pointerLocked) {
     playerYaw -= (e.movementX||0)*0.0024;
     playerPitch -= (e.movementY||0)*0.0024;
     if (playerPitch > 1.2) playerPitch=1.2; if (playerPitch < -1.2) playerPitch=-1.2;
-  } else { mouseX=e.clientX; mouseY=e.clientY; }
+  } else if (orbitDragging && typeof CamMode!=='undefined') {
+    CamMode.orbitYaw   -= (e.movementX||0)*0.006;
+    CamMode.orbitPitch  = Math.max(0.18, Math.min(1.45, CamMode.orbitPitch + (e.movementY||0)*0.005));
+  }
+  mouseX=e.clientX; mouseY=e.clientY;   // 始终记录光标：非第一人称的瞄准依赖它
 });
+window.addEventListener("wheel", e => {                     // 自由环绕：滚轮缩放
+  if (typeof CamMode==='undefined' || CamMode.cur!=='orbit') return;
+  if (typeof screen==='undefined' || screen!=='play') return;
+  CamMode.orbitDist = Math.max(5, Math.min(48, CamMode.orbitDist + Math.sign(e.deltaY)*1.6));
+}, {passive:true});
 document.addEventListener("pointerlockchange", () => {
   pointerLocked = (document.pointerLockElement === sceneCanvas);
 });
@@ -3111,7 +3129,10 @@ function activeGun(){
 const usingSidearm = ()=> activeGun()===SIDEARM;
 const curMag = ()=> usingSidearm() ? salvSideMag : PlayerMission.mag;
 
-function salvageResetView(){ playerYaw=0; playerPitch=0; }
+function salvageResetView(){
+  playerYaw=0; playerPitch=0;
+  if(typeof CamMode!=='undefined'){ CamMode.reset(); applyCamMode(); }  // 每局默认回到战术俯视（已锁定形态）
+}
 
 function showRuleReminder(){
   const el=document.getElementById('rule-reminder');
@@ -3396,6 +3417,176 @@ FP.setSceneMode = function(m){
   if(this.salvGroup) this.salvGroup.visible = sv;
   if(this.surgeGroup) this.surgeGroup.visible = sg;
 };
+/* ---------- 人物外观：对齐 09_人物设定·视觉与文案.md ----------
+   只影响外观，不改任何玩法数值（数值仍以 SALVAGE_OPS 为准）。
+   俯视角度下躯干细节会被压缩，所以「背负物外轮廓 + 肩宽」是第一识别项，配色只做近距离辅助。 */
+const OPLOOK = {
+  kestrel  :{main:0x5b7f8c, sub:0xcfd6dd, acc:0xffcf5f, build:"slim",  pack:"sling",  head:"hood"},
+  cauldron :{main:0x8c3b2a, sub:0x2a3138, acc:0xff7a3c, build:"heavy", pack:"tank",   head:"goggles"},
+  lamplight:{main:0xc9a227, sub:0x1f3b45, acc:0xffe9b0, build:"mid",   pack:"antenna",head:"lamp"},
+  bulwark  :{main:0x6b7480, sub:0x39414a, acc:0x50e696, build:"heavy", pack:"shield", head:"helm"},
+  skimmer  :{main:0x3fc8d6, sub:0xe6f4f7, acc:0x1c5f8c, build:"slim",  pack:"board",  head:"visor"},
+  gannel   :{main:0x6f8f3d, sub:0x8a6a3c, acc:0xe8d44d, build:"slim",  pack:"rope",   head:"cap"},
+  ledger   :{main:0xa8873c, sub:0x22322b, acc:0xe8e2d0, build:"mid",   pack:"ledger", head:"monocle"},
+  dredger  :{main:0x6e5a3c, sub:0x4a4a4a, acc:0xff8c42, build:"heavy", pack:"bucket", head:"lamp"}
+};
+const ENEMYLOOK = {
+  scav  :{main:0xc0392b, sub:0x3a2420, acc:0xffb347, build:"mid",   pack:"scrap",  head:"weldmask"},
+  drone :{main:0xffd24a, sub:0x2b2f36, acc:0xff5347, build:"drone", pack:"gun",    head:"none"},
+  warden:{main:0x8e3b6b, sub:0x241a2b, acc:0xc9a2ff, build:"tall",  pack:"scanner",head:"scanner"}
+};
+// 体型参数：肩宽/躯干厚/躯干高/臂粗/腿粗/站距 —— 决定剪影
+const BUILDS = {
+  slim :{sh:0.44, th:0.22, torsoH:0.62, arm:0.09, leg:0.11, stance:0.16},
+  mid  :{sh:0.54, th:0.26, torsoH:0.66, arm:0.11, leg:0.13, stance:0.19},
+  heavy:{sh:0.70, th:0.34, torsoH:0.68, arm:0.14, leg:0.17, stance:0.26},
+  tall :{sh:0.62, th:0.30, torsoH:0.86, arm:0.12, leg:0.16, stance:0.24},
+  drone:{sh:0.54, th:0.26, torsoH:0.66, arm:0.11, leg:0.13, stance:0.19}
+};
+// 程序化人形（低多边形，无外部资源）。返回 Group，原点在脚底，朝向 +Z
+function buildHumanoid(look){
+  const B = BUILDS[look.build] || BUILDS.mid;
+  const g = new THREE.Group();
+  const mMain=new THREE.MeshLambertMaterial({color:look.main});
+  const mSub =new THREE.MeshLambertMaterial({color:look.sub});
+  const mAcc =new THREE.MeshLambertMaterial({color:look.acc, emissive:look.acc, emissiveIntensity:0.4});
+  const legH=0.52;
+  for(const s of [-1,1]){                                   // 双腿
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(B.leg*2,legH,B.leg*2.2), mSub);
+    leg.position.set(s*B.stance, legH/2, 0); g.add(leg);
+  }
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(B.sh,B.torsoH,B.th), mMain);
+  torso.position.y=legH+B.torsoH/2; g.add(torso);
+  const ty=torso.position.y;
+  for(const s of [-1,1]){                                   // 双臂
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(B.arm*2,legH*1.05,B.arm*2), mMain);
+    arm.position.set(s*(B.sh/2+B.arm*0.9), ty+0.02, 0); g.add(arm);
+  }
+  const headR=0.17;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(headR,12,10), mMain);
+  head.position.y=ty+B.torsoH/2+headR*0.85; g.add(head);
+  const hy=head.position.y;
+  if(look.head==="lamp"){                                   // 渔火：头顶探照灯（点缀色，暗场里最先被看到）
+    const lamp=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.12,10), mAcc);
+    lamp.position.set(0,hy+headR*0.85,0.10); lamp.rotation.x=Math.PI/2.2; g.add(lamp);
+  } else if(look.head==="goggles"||look.head==="visor"){
+    const v=new THREE.Mesh(new THREE.BoxGeometry(B.sh*0.82,0.08,0.06), mAcc);
+    v.position.set(0,hy+0.02,headR*0.92); g.add(v);
+  } else if(look.head==="helm"){
+    const h=new THREE.Mesh(new THREE.BoxGeometry(headR*2.3,0.16,headR*2.3), mSub);
+    h.position.y=hy+0.08; g.add(h);
+  } else if(look.head==="monocle"){
+    const m=new THREE.Mesh(new THREE.TorusGeometry(0.055,0.016,6,12), mAcc);
+    m.position.set(0.06,hy+0.02,headR*0.9); g.add(m);
+  } else if(look.head==="cap"||look.head==="hood"){
+    const c=new THREE.Mesh(new THREE.SphereGeometry(headR*1.12,12,8,0,Math.PI*2,0,Math.PI/2), mSub);
+    c.position.y=hy+0.03; g.add(c);
+  } else if(look.head==="weldmask"){
+    const w=new THREE.Mesh(new THREE.BoxGeometry(B.sh*0.7,0.24,0.1), mAcc);
+    w.position.set(0,hy,headR*0.85); g.add(w);
+  } else if(look.head==="scanner"){
+    const s=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.14,12), mAcc);
+    s.position.y=hy+0.34; g.add(s);
+  }
+  const pz=-B.th/2;                                          // 背负物一律挂在背后（-Z），俯视时外轮廓最清楚
+  switch(look.pack){
+    case "sling":{ const p=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.3,0.14), mSub);
+      p.position.set(-0.18,ty+0.02,pz-0.06); g.add(p); break; }
+    case "tank":{ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.52,12), mSub);
+      p.position.set(0,ty+0.04,pz-0.14); g.add(p);
+      const v=new THREE.Mesh(new THREE.TorusGeometry(0.09,0.03,6,10), mAcc);
+      v.position.set(0,ty+0.3,pz-0.14); v.rotation.y=Math.PI/2; g.add(v); break; }
+    case "antenna":{ const a=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.62,0.035), mSub);
+      a.position.set(0.14,ty+0.34,pz-0.08); g.add(a);
+      const t=new THREE.Mesh(new THREE.SphereGeometry(0.055,8,6), mAcc);
+      t.position.set(0.14,ty+0.66,pz-0.08); g.add(t); break; }
+    case "shield":{ const s=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.8,0.07), mSub);
+      s.position.set(-(B.sh/2+0.24),ty+0.02,0.06); g.add(s);
+      const boss=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.09,10), mAcc);
+      boss.position.set(-(B.sh/2+0.24),ty+0.02,0.12); boss.rotation.x=Math.PI/2; g.add(boss); break; }
+    case "board":{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.56,0.5,0.07), mSub);
+      b.position.set(0,ty+0.08,pz-0.1); b.rotation.x=-0.35; g.add(b); break; }
+    case "rope":{ const r=new THREE.Mesh(new THREE.TorusGeometry(0.15,0.055,8,14), mSub);
+      r.position.set(0.2,legH+0.06,0.06); r.rotation.y=Math.PI/2; g.add(r); break; }
+    case "ledger":{ const l=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.26,0.05), mSub);
+      l.position.set(0,ty+0.02,B.th/2+0.04); g.add(l);
+      const pen=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.16,0.03), mAcc);
+      pen.position.set(0.13,ty+0.02,B.th/2+0.07); g.add(pen); break; }
+    case "bucket":{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.36,0.3), mSub);
+      b.position.set(0,ty+0.1,pz-0.16); g.add(b);
+      const arm=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.09,0.5), mAcc);
+      arm.position.set(-(B.sh/2+0.1),ty+0.16,-0.1); g.add(arm); break; }
+    case "scrap":{                                           // 拾荒者：左右不对称的拼凑护甲
+      const a=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.34,0.1), mSub);
+      a.position.set(-0.22,ty+0.06,B.th/2+0.03); g.add(a);
+      const b=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.24,0.1), mAcc);
+      b.position.set(0.2,ty-0.04,B.th/2+0.03); g.add(b); break; }
+    case "scanner":{ const s=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.1,12), mSub);
+      s.position.set(0,ty+B.torsoH/2+0.14,0); g.add(s); break; }
+  }
+  g.userData.look=look;
+  return g;
+}
+// 无人机：碟形 + 下挂机枪（唯一空中单位，剪影独立）
+function buildDrone(look){
+  const g=new THREE.Group();
+  const mMain=new THREE.MeshLambertMaterial({color:look.main});
+  const mSub =new THREE.MeshLambertMaterial({color:look.sub});
+  const mAcc =new THREE.MeshLambertMaterial({color:look.acc, emissive:look.acc, emissiveIntensity:0.4});
+  const disc=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.42,0.16,14), mMain); g.add(disc);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.5,0.05,6,16), mSub); ring.rotation.x=Math.PI/2; g.add(ring);
+  const gun=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.46), mSub); gun.position.set(0,-0.16,0.22); g.add(gun);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8), mAcc); eye.position.set(0,0.02,0.34); g.add(eye);
+  return g;
+}
+// 战利品标记：光柱负责远距离发现，菱形负责近距离辨认，光环负责贴地定位。
+// 稀有度越高 → 光柱越高、菱形越大，扫一眼就知道值不值得绕路。
+const RARITY_COL = [0xcfd6dd,0x5fd0ff,0xc08bff,0xffcf5f];   // 与 2D 视图 / HUD 共用同一套配色
+function buildLootMarker(){
+  const g=new THREE.Group();
+  const mRing=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.55,side:THREE.DoubleSide});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.62,16), mRing);
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.06; g.add(ring);
+  const mBeam=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.20,side:THREE.DoubleSide});
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.10,1,8,1,true), mBeam);
+  g.add(beam);
+  const mDia=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.95});
+  const dia=new THREE.Group();                                 // 两个四棱锥上下对扣 = 菱形（八面体）
+  const c1=new THREE.Mesh(new THREE.ConeGeometry(0.26,0.44,4), mDia); dia.add(c1);
+  const c2=new THREE.Mesh(new THREE.ConeGeometry(0.26,0.44,4), mDia); c2.rotation.x=Math.PI; dia.add(c2);
+  g.add(dia);
+  g.userData={ring,beam,dia,mats:[mRing,mBeam,mDia]};
+  g.visible=false;
+  return g;
+}
+// 世界内文字标签（Sprite）。无头测试没有真实 canvas 时返回 null，调用方一律判空。
+function makeTextSprite(){
+  if(typeof document==='undefined'||!document.createElement) return null;
+  let cv,cx;
+  try{ cv=document.createElement('canvas'); if(!cv||!cv.getContext) return null;
+       cx=cv.getContext('2d'); if(!cx) return null; }catch(e){ return null; }
+  cv.width=256; cv.height=64;
+  const tex=new THREE.CanvasTexture(cv);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));
+  sp.scale.set(4.6,1.15,1);
+  sp.userData={cv,cx,tex,last:null};
+  return sp;
+}
+// 文字没变就不重绘 —— 距离每帧都在变，但整数米变化才更新，避免每帧上传纹理
+function setSpriteText(sp,text,color){
+  if(!sp) return;
+  const ud=sp.userData, key=text+'|'+color;
+  if(ud.last===key) return;
+  ud.last=key;
+  const c=ud.cx, cv=ud.cv;
+  c.clearRect(0,0,cv.width,cv.height);
+  c.fillStyle='rgba(6,10,16,.66)'; c.fillRect(0,0,cv.width,cv.height);
+  c.strokeStyle=color; c.lineWidth=3; c.strokeRect(1.5,1.5,cv.width-3,cv.height-3);
+  c.fillStyle=color; c.font='bold 30px system-ui,sans-serif';
+  c.textAlign='center'; c.textBaseline='middle';
+  c.fillText(text, cv.width/2, cv.height/2+1);
+  ud.tex.needsUpdate=true;
+}
 FP.buildSalvage = function(){
   if(this.salvGroup){ this.scene.remove(this.salvGroup); this.salvGroup=null; }
   const grp=new THREE.Group(); this.salvGroup=grp; this.scene.add(grp);
@@ -3411,16 +3602,20 @@ FP.buildSalvage = function(){
   geo.setAttribute("color", new THREE.Float32BufferAttribute(colors,3));
   this.salvGround=new THREE.Mesh(geo, new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true}));
   grp.add(this.salvGround);
-  this.lootPool=[]; for(let i=0;i<25;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5),
-    new THREE.MeshBasicMaterial({color:0xffffff})); m.visible=false; grp.add(m); this.lootPool.push(m); }
-  this.scavPool=[]; for(let i=0;i<12;i++){ const m=new THREE.Group();
-    const b=new THREE.Mesh(new THREE.BoxGeometry(0.6,1.2,0.36), new THREE.MeshLambertMaterial({color:0xff7a5a}));
-    b.position.y=0.6; m.add(b); m.visible=false; grp.add(m); this.scavPool.push(m); }
-  this.dronePool=[]; for(let i=0;i<4;i++){ const m=new THREE.Mesh(new THREE.SphereGeometry(0.5,12,10),
-    new THREE.MeshLambertMaterial({color:0xffd24a})); m.visible=false; grp.add(m); this.dronePool.push(m); }
-  this.wardenMesh=new THREE.Mesh(new THREE.BoxGeometry(1.6,3,1.6),
-    new THREE.MeshLambertMaterial({color:0xff3b3b,emissive:0x440000}));
+  // 战利品：地面光环 + 垂直光柱 + 悬浮菱形。
+  // 原来是 0.5m 素方块，在 20m 高空俯视下只有几个像素，和普通箱子无法区分 —— 这是"看不清"的主因。
+  this.lootPool=[]; for(let i=0;i<25;i++){ const m=buildLootMarker(); grp.add(m); this.lootPool.push(m); }
+  this.scavPool=[]; for(let i=0;i<12;i++){
+    const m=buildHumanoid(ENEMYLOOK.scav); m.visible=false; grp.add(m); this.scavPool.push(m); }
+  this.dronePool=[]; for(let i=0;i<4;i++){
+    const m=buildDrone(ENEMYLOOK.drone); m.visible=false; grp.add(m); this.dronePool.push(m); }
+  this.wardenMesh=buildHumanoid(ENEMYLOOK.warden);
+  this.wardenMesh.scale.setScalar(1.35);                    // 守望者体量最大，远距离即可分辨
   this.wardenMesh.visible=false; grp.add(this.wardenMesh);
+  // 玩家人形：俯视/跟随/环绕可见，第一人称隐藏（沿用"第一人称不画自己"）
+  const plook = OPLOOK[(typeof SalvageLoadout!=='undefined' && SalvageLoadout.op) || 'kestrel'] || OPLOOK.kestrel;
+  this.playerMesh=buildHumanoid(plook);
+  this.playerMesh.visible=false; grp.add(this.playerMesh);
   // 幽灵（潮痕）：半透明轮廓 + 脚下光环。纯视觉对象 —— 不参与碰撞、索敌、拾取，也不进入任何实体列表
   this.ghostMesh=new THREE.Group();
   { const body=new THREE.Mesh(new THREE.BoxGeometry(0.6,1.2,0.36),
@@ -3435,16 +3630,100 @@ FP.buildSalvage = function(){
       new THREE.MeshBasicMaterial({color:0x50e696,transparent:true,opacity:0.8}));
     m.position.set(p.pos.x, p.elev+2, p.pos.z); grp.add(m); return m;
   });
+  // 撤离点世界内名称标签：HUD 写着"可撤离：船坞闸门"，但玩家不知道哪根柱子是它 —— 这里把名字挂上去
+  this.extrLabels=Extraction.points.map(p=>{
+    const sp=makeTextSprite();
+    if(sp){ sp.position.set(p.pos.x, p.elev+5.2, p.pos.z); grp.add(sp); }
+    return sp;
+  });
+  this._floodLvl=null; this.floodMesh=null;     // 满潮淹没预警（按水位变化节流重建）
 };
+/* ---------- 相机模式 ----------
+   tactical 战术俯视（默认，对齐已锁定的 2.5D 形态）：固定朝向、高空俯瞰，最能看出"水位在涨、退路消失"
+   follow   跟随第三人称：相机在角色斜后上方，能看清角色模型与场景细节
+   orbit    自由环绕：鼠标拖拽绕角色旋转/滚轮缩放，用于检视地形与截图
+   fps      第一人称：保留原有实现（这是本次改造前的实际行为，不能当作删功能） */
+const CamMode = {
+  modes:['tactical','follow','orbit','fps'],
+  labels:{tactical:'战术俯视', follow:'跟随视角', orbit:'自由环绕', fps:'第一人称'},
+  idx:0, orbitYaw:0, orbitPitch:0.9, orbitDist:16,
+  get cur(){ return this.modes[this.idx]; },
+  get label(){ return this.labels[this.cur] || this.cur; },
+  next(){ this.idx=(this.idx+1)%this.modes.length; return this.cur; },
+  set(m){ const i=this.modes.indexOf(m); if(i>=0) this.idx=i; return this.cur; },
+  reset(){ this.idx=0; this.orbitYaw=0; this.orbitPitch=0.9; this.orbitDist=16; }
+};
+// 视角标签：动态创建，避免改动 HTML 结构；无头测试里没有 document.body 则静默跳过
+function camLabelEl(){
+  if(typeof document==='undefined' || !document.body) return null;
+  let el=document.getElementById('cam-mode');
+  if(!el){
+    el=document.createElement('div'); el.id='cam-mode';
+    el.style.cssText='position:fixed;left:16px;bottom:14px;z-index:30;font-size:12px;letter-spacing:.14em;'
+      +'color:#8fa3ae;background:rgba(6,10,16,.62);border:1px solid rgba(120,150,175,.22);'
+      +'border-radius:4px;padding:5px 10px;pointer-events:none;transition:opacity .2s';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+// 切换视角：只有第一人称需要指针锁定，其余模式必须释放，否则光标瞄准失效
+function applyCamMode(){
+  if(typeof CamMode==='undefined') return CamMode && CamMode.cur;
+  const fps = CamMode.cur==='fps';
+  if(typeof document!=='undefined'){
+    if(!fps && document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
+    const el=camLabelEl();
+    const play = (typeof screen!=='undefined' && screen==='play');
+    if(el){ el.textContent='视角 '+CamMode.label+' · V 切换'; el.style.display=play?'':'none'; }
+  }
+  return CamMode.cur;
+}
+// 光标 → 地面平面投影点 → 瞄准 yaw。俯视类视角的自然瞄准方式（沿用"WASD+鼠标瞄准"的锁定交互）
+function aimYawFromCursor(planeY){
+  if(!FP.camera || typeof mouseX!=='number') return null;
+  const ndc = { x:(mouseX/window.innerWidth)*2-1, y:-(mouseY/window.innerHeight)*2+1 };
+  const v = new THREE.Vector3(ndc.x, ndc.y, 0.5).unproject(FP.camera);
+  const dir = v.sub(FP.camera.position).normalize();
+  if(Math.abs(dir.y) < 1e-5) return null;
+  const k = (planeY - FP.camera.position.y) / dir.y;
+  if(k <= 0) return null;                                  // 交点在相机后方
+  const hx = FP.camera.position.x + dir.x*k, hz = FP.camera.position.z + dir.z*k;
+  return Math.atan2(hx-PlayerMission.pos.x, -(hz-PlayerMission.pos.z));
+}
 FP.renderSalvage = function(t){
   if(!this.ok || !this.salvGroup) return;
   const P=PlayerMission; if(!P) return;
   const g=MapHeight.sample(P.pos.x,P.pos.z);
   const depth=Math.max(0,TideMission.level-g);
   const eye=Math.max(g,TideMission.level)+1.5;
-  this.camera.position.set(P.pos.x, eye, P.pos.z);
-  const yaw=playerYaw, pitch=playerPitch, horiz=Math.cos(pitch);
-  this.camera.lookAt(P.pos.x+Math.sin(yaw)*horiz, eye+Math.sin(pitch), P.pos.z-Math.cos(yaw)*horiz);
+  const cm=(typeof CamMode!=='undefined') ? CamMode.cur : 'fps';
+  // 非第一人称：光标指哪打哪；第一人称沿用指针锁定的转视角
+  if(cm!=='fps' && !pointerLocked){
+    const ay=aimYawFromCursor(Math.max(g,TideMission.level)+0.9);
+    if(ay!=null) playerYaw=ay;
+  }
+  if(cm==='tactical'){
+    const H=20, BACK=9;                                    // 固定朝向、不随瞄准旋转 —— 这才是"固定俯视角"
+    this.camera.position.set(P.pos.x, eye+H, P.pos.z+BACK);
+    this.camera.lookAt(P.pos.x, eye, P.pos.z);
+  } else if(cm==='follow'){
+    const D=6.5, UP=3.2;
+    this.camera.position.set(P.pos.x-Math.sin(playerYaw)*D, eye+UP, P.pos.z+Math.cos(playerYaw)*D);
+    this.camera.lookAt(P.pos.x, eye+0.9, P.pos.z);
+  } else if(cm==='orbit'){
+    const oy=CamMode.orbitYaw, op=CamMode.orbitPitch, od=CamMode.orbitDist;
+    this.camera.position.set(P.pos.x+Math.sin(oy)*Math.cos(op)*od,
+                             eye+Math.sin(op)*od,
+                             P.pos.z+Math.cos(oy)*Math.cos(op)*od);
+    this.camera.lookAt(P.pos.x, eye+0.9, P.pos.z);
+  } else {
+    const pitch=playerPitch, horiz=Math.cos(pitch);
+    this.camera.position.set(P.pos.x, eye, P.pos.z);
+    this.camera.lookAt(P.pos.x+Math.sin(playerYaw)*horiz, eye+Math.sin(pitch), P.pos.z-Math.cos(playerYaw)*horiz);
+  }
+  // 手持枪械视图模型只在第一人称出现；其余模式由角色人形自己持枪
+  if(this.gun) this.gun.visible=(cm==='fps');
+  if(this.muzzleLight) this.muzzleLight.visible=(cm==='fps');
   if(this.water){ this.water.position.y=TideMission.level;
     const wpos=this.water.geometry.attributes.position;
     for(let i=0;i<wpos.count;i++){ const x=wpos.getX(i),z=wpos.getZ(i);
@@ -3452,20 +3731,49 @@ FP.renderSalvage = function(t){
     wpos.needsUpdate=true; }
   for(let i=0;i<this.lootPool.length;i++){ const it=LootSystem.items[i], m=this.lootPool[i];
     if(!it||it.taken){ m.visible=false; continue; } m.visible=true;
-    m.position.set(it.pos.x, Math.max(MapHeight.sample(it.pos.x,it.pos.z),TideMission.level)+0.4, it.pos.z);
-    m.material.color.setHex([0xcfd6dd,0x5fd0ff,0xc08bff,0xffcf5f][it.rarity]); }
+    m.position.set(it.pos.x, Math.max(MapHeight.sample(it.pos.x,it.pos.z),TideMission.level), it.pos.z);
+    const ud=m.userData, col=RARITY_COL[it.rarity]||RARITY_COL[0], r=it.rarity||0;
+    const h=1.1+r*0.35;                                       // 稀有度越高，光柱越高
+    ud.beam.scale.y=h; ud.beam.position.y=h/2;
+    // 用绝对时间驱动旋转与浮动。若写成 position.y += bob，误差会逐帧累加、标记会漂走。
+    ud.dia.rotation.y  = t*1.1 + i*0.7;
+    ud.dia.position.y  = h + 0.36 + Math.sin(t*1.7 + i)*0.09;
+    ud.dia.scale.setScalar(0.9 + r*0.12);
+    ud.ring.scale.setScalar(0.9 + r*0.10);
+    for(const mm of ud.mats) mm.color.setHex(col); }
   for(let i=0;i<this.scavPool.length;i++){ const s=Mission.entities.scavs[i], m=this.scavPool[i];
     if(!s||s.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
-    m.position.set(s.pos.x, MapHeight.sample(s.pos.x,s.pos.z)+0.6, s.pos.z); }
+    m.position.set(s.pos.x, MapHeight.sample(s.pos.x,s.pos.z), s.pos.z);   // 人形原点在脚底
+    const tp=(s.state==='TO_HIGH' && s.target) ? s.target : P.pos;         // 转移时朝向目标，否则朝玩家（它在找你）
+    m.rotation.y=Math.atan2(tp.x-s.pos.x, tp.z-s.pos.z); }
   for(let i=0;i<this.dronePool.length;i++){ const d=Mission.entities.drones[i], m=this.dronePool[i];
     if(!d||d.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
-    m.position.set(d.pos.x, Math.max(MapHeight.sample(d.pos.x,d.pos.z),TideMission.level)+2.0, d.pos.z); }
+    m.position.set(d.pos.x, Math.max(MapHeight.sample(d.pos.x,d.pos.z),TideMission.level)+2.0, d.pos.z);
+    m.rotation.y=Math.atan2(P.pos.x-d.pos.x, P.pos.z-d.pos.z);
+    m.rotation.z=Math.sin(t*3.0+i)*0.05; }                                 // 悬浮微摆
   if(this.wardenMesh){ const w=Mission.entities.warden;
     if(!w||w.state==='DEAD'){ this.wardenMesh.visible=false; }
-    else { this.wardenMesh.visible=true; this.wardenMesh.position.set(w.pos.x, MapHeight.sample(w.pos.x,w.pos.z)+1.5, w.pos.z); } }
+    else { this.wardenMesh.visible=true;
+      this.wardenMesh.position.set(w.pos.x, MapHeight.sample(w.pos.x,w.pos.z), w.pos.z);
+      this.wardenMesh.rotation.y=Math.atan2(P.pos.x-w.pos.x, P.pos.z-w.pos.z); } }
+  // 玩家人形：第一人称不画自己；其余模式按当前干员外观显示，朝向 = 瞄准方向
+  if(this.playerMesh){
+    const fps = (typeof CamMode!=='undefined') && CamMode.cur==='fps';
+    this.playerMesh.visible = !fps && !P.dead;
+    if(this.playerMesh.visible){
+      const pg=Math.max(g,TideMission.level);
+      this.playerMesh.position.set(P.pos.x, pg, P.pos.z);
+      this.playerMesh.rotation.y=playerYaw;
+    }
+  }
   for(let i=0;i<this.extrPool.length;i++){ const p=Extraction.points[i], m=this.extrPool[i];
     const active=p.elev>TideMission.level+0.2 && (p.closeAt===Infinity||TideMission.t<p.closeAt);
-    m.material.color.setHex(active?0x50e696:0x666666); m.material.opacity=active?0.85:0.35; }
+    m.material.color.setHex(active?0x50e696:0x666666); m.material.opacity=active?0.85:0.35;
+    const sp=this.extrLabels && this.extrLabels[i];
+    if(sp){                                                   // 整数米变化才重绘纹理，避免每帧上传
+      const d=Math.round(Math.hypot(p.pos.x-P.pos.x, p.pos.z-P.pos.z));
+      setSpriteText(sp, active ? (p.id+"  "+d+"m") : (p.id+" 已关闭"), active?"#9affc8":"#88929b");
+    } }
   if(this.gun){ this.gun.position.z=-0.5+(salvMuzzle>0?salvMuzzle*0.06:0);
     this.gun.position.y=-0.20+(salvMuzzle>0?salvMuzzle*0.02:0); }
   if(this.muzzleLight) this.muzzleLight.intensity=salvMuzzle>0?7:0;
@@ -3483,7 +3791,41 @@ FP.renderSalvage = function(t){
         if(dx*dx+dz*dz>0.0004) this.ghostMesh.rotation.y=Math.atan2(dx,dz); }
     } else this.ghostMesh.visible=false;
   }
+  this._updateFloodWarning();
+  if(this.floodMesh) this.floodMesh.material.opacity=0.12+0.07*Math.sin(t*2.2);   // 缓慢呼吸，提示"这里会淹"
   this.renderer.render(this.scene,this.camera);
+};
+/* 满潮淹没预警：把「30 秒后会被潮水吃掉」的区域标出来。
+   敌人 AI 早就用 TideMission.project(30) 预判逃高了（见 Scavenger.update），
+   玩家看到同样的信息才谈得上公平 —— 这不是 UI 糖，是把核心机制摆到台面上。
+   按水位变化节流重建（每 0.06m 一次），不做逐帧重建。 */
+// 预警视野（秒）。敌人 AI 用 30s 决定"该不该跑"（见 Scavenger.update），
+// 但给玩家看的预警需要可反应时间：涨潮期 30s 只涨约 0.11m，窄到几乎看不见，
+// 实测 21 个采样时刻只有 3 个会亮。放宽到 90s 后预警带约 0.34m，才是能据以规划路线的宽度。
+const FLOOD_LEAD_SEC = 90;
+FP._updateFloodWarning = function(){
+  if(!this.salvGroup) return;
+  const fut=TideMission.project(FLOOD_LEAD_SEC);
+  if(this._floodLvl!=null && Math.abs(fut-this._floodLvl)<0.06 && this.floodMesh) return;
+  this._floodLvl=fut;
+  if(this.floodMesh){ this.salvGroup.remove(this.floodMesh);
+    if(this.floodMesh.geometry.dispose) this.floodMesh.geometry.dispose();
+    this.floodMesh=null; }
+  const nx=MapHeight.nx, nz=MapHeight.nz, C=MapHeight.CELL, cur=TideMission.level;
+  const verts=[];
+  for(let j=0;j<nz;j++) for(let i=0;i<nx;i++){
+    const h=MapHeight.grid[j*nx+i];
+    if(h>=fut || h<cur-0.02) continue;                        // 只画"尚未淹但 30s 内会淹"的地带
+    const wx=i*C-MapHeight.W/2, wz=j*C-MapHeight.D/2, y=Math.max(h,cur)+0.06;
+    verts.push(wx-C/2,y,wz-C/2, wx+C/2,y,wz-C/2, wx+C/2,y,wz+C/2,
+               wx-C/2,y,wz-C/2, wx+C/2,y,wz+C/2, wx-C/2,y,wz+C/2);
+  }
+  if(!verts.length) return;
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(verts,3));
+  this.floodMesh=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    color:0xff8c42, transparent:true, opacity:0.15, side:THREE.DoubleSide, depthWrite:false }));
+  this.salvGroup.add(this.floodMesh);
 };
 /* ==========================================================================
    SURGE 涌潮模式（12v12 大战场 · 争夺 3 浮动泵站占点得分 · 对齐 01_核心设定集 模式三）
