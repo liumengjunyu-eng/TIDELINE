@@ -7,7 +7,9 @@
 
 const fs = require("fs"), path = require("path"), vm = require("vm");
 const HTML = path.join(__dirname, "..", "..", "web", "index.html");
-const SRC = fs.readFileSync(HTML, "utf8").match(/<script>([\s\S]*?)<\/script>/)[1];
+const SRC = (function(){ // 第一个内联 <script> 是 three.js 库，主游戏逻辑在最后一个块
+  const _b = fs.readFileSync(HTML, "utf8").match(/<script>([\s\S]*?)<\/script>/g);
+  return _b[_b.length-1].replace(/^<script>/,"").replace(/<\/script>$/,""); })();
 
 /* ---------- THREE 桩 ---------- */
 function colorStub() { return { setHex(){}, setRGB(){}, set(){}, clone(){return colorStub();} }; }
@@ -19,7 +21,11 @@ function Material(opts) {
   m.emissive = colorStub();
   return m;
 }
-function vec() { return { x:0, y:0, z:0, set(){return this;}, copy(){return this;} }; }
+// 注意：set()/copy() 必须真的写入分量。早先是空实现，导致所有 position.set(...) 静默失效、
+// 位置恒为 (0,0,0) —— 任何「位置正确」类断言都会变成假通过。
+function vec() { return { x:0, y:0, z:0,
+  set(x,y,z){ this.x=x; this.y=y; this.z=z; return this; },
+  copy(v){ this.x=v.x; this.y=v.y; this.z=v.z; return this; } }; }
 function makePosition(count) {
   return { count, getX:()=>0, getY:()=>0, getZ:()=>0,
            setX:()=>{}, setY:()=>{}, setZ:()=>{}, needsUpdate:false };
@@ -142,6 +148,35 @@ try {
 } catch (e) { salvErr = e; }
 check("SALVAGE: buildSalvage 建立 salvGroup 场景", ev("FP.salvGroup!==null"));
 check("SALVAGE: renderSalvage 30 帧无异常", salvErr === null, salvErr ? salvErr.message : "30 帧无报错");
+
+// ---- 幽灵渲染路径（P1-c.2）----
+// 本测试用 THREE 桩 + WebGL 桩跑通 buildSalvage / renderSalvage，是唯一会执行到幽灵
+// 「可见」分支的地方：其余无头测试 FP.ok=false，那段渲染代码根本不会执行。
+let ghostErr = null, ghostVisible = false, ghostPos = null, ghostSample = null, ghostGone = null;
+try {
+  run("GhostPlayer.load([{t:0,x:-24,z:2},{t:20,x:-10,z:8},{t:60,x:10,z:-6,event:'extract'}]);");
+  for (let f = 0; f < 10; f++) { run("Mission.update(1/60); FP.renderSalvage(" + (f / 60) + ");"); }
+  ghostVisible = ev("!!(FP.ghostMesh && FP.ghostMesh.visible===true)");
+  ghostSample = ev("GhostPlayer.sampleAt(TideMission.t)");
+  ghostPos = ev("FP.ghostMesh ? {x:FP.ghostMesh.position.x, z:FP.ghostMesh.position.z} : null");
+} catch (e) { ghostErr = e; }
+check("幽灵渲染：载入轨迹后 10 帧无异常", ghostErr === null, ghostErr ? ghostErr.message : "10 帧无报错");
+check("幽灵渲染：轨迹期内 ghostMesh 可见", ghostVisible === true);
+// 关键断言：网格位置必须等于插值采样值。此前 vec() 桩的 set() 是空实现 → 位置恒 (0,0)，
+// 而「非原点」式断言在 x=0 时同样通过，是个假通过。已补齐桩，并改为与采样值精确比对。
+check("幽灵渲染：网格位置 = 插值采样位置",
+      !!ghostPos && !!ghostSample &&
+      Math.abs(ghostPos.x - ghostSample.x) < 0.01 && Math.abs(ghostPos.z - ghostSample.z) < 0.01,
+      ghostPos && ghostSample
+        ? "mesh=(" + ghostPos.x.toFixed(2) + ", " + ghostPos.z.toFixed(2) +
+          ") sample=(" + ghostSample.x.toFixed(2) + ", " + ghostSample.z.toFixed(2) + ")"
+        : "null");
+// 时间轴越过幽灵终点 → 隐藏（对手那时已撤离，不该还站在场上）
+try {
+  run("TideMission.t = 999; FP.renderSalvage(1);");
+  ghostGone = ev("FP.ghostMesh ? FP.ghostMesh.visible : null");
+} catch (e) { ghostGone = "ERR:" + e.message; }
+check("幽灵渲染：越过轨迹终点后隐藏（对手已撤离）", ghostGone === false, "visible=" + ghostGone);
 
 // 注：BREACH / SURGE 已裁定为作废旧案，整段代码归档于 game/legacy/，
 // 不再作为产品门面或入口。本冒烟测试只验证 SALVAGE 这一张脸的 3D 渲染路径。

@@ -64,15 +64,22 @@ TIDELINE/
 ├─ 05_重新定位与上线方案.md  上线方案
 ├─ 06_完整设定集·单人版.md   单人版设定
 ├─ 07_综合决策与游戏开发执行方案.md  执行总案（裁定 BREACH/SURGE 作废）
+├─ 08_P1设计路线图.md       人物 / 场景 / 多人方案（含幽灵竞速设计）
 ├─ game/                    Godot 工程源码（参考 / 本地导出用）
 │  ├─ project.godot
 │  ├─ main.gd / scenes/ / entities/ / systems/ / world/ / autoload/ / core/
 │  ├─ build_dist.bat        本机导出 exe/web 一键脚本（需先装 Godot+模板）
 │  ├─ README_测试说明.txt    测试者一页纸说明
 │  ├─ legacy/
-│  │  └─ index_full_2026-08-29_pre_restructure.html  ★ BREACH/SURGE 完整归档快照（作废旧案，供回归/考古）
+│  │  ├─ index_full_2026-08-29_pre_restructure.html  ★ BREACH/SURGE 完整归档快照（作废旧案，供回归/考古）
+│  │  └─ index_offline_2026-08-29_旧UI快照.html       ★ 旧离线副本（已归档：其 UI 为旧版，勿再维护）
 │  └─ tools/
-│     ├─ test_salvage_headless.js ★ SALVAGE 单人撤离仿真（23 项，针对 web/index.html）
+│     ├─ test_salvage_headless.js ★ SALVAGE 单人撤离仿真（33 项，针对 web/index.html）
+│     ├─ test_ops_headless.js     ★ 干员被动 / 深水降级 / 战斗数值（22 项）
+│     ├─ test_unlock_headless.js  ★ 成就式解锁：三层提示 / 双路径 / 结算闭环（36 项）
+│     ├─ test_grace_headless.js   ★ 开局静默期与出生点安全半径（13 项）
+│     ├─ test_seed_headless.js    ★ P1-c.0 地图确定性：同 seed 复现 / 异 seed 区分（9 项）
+│     ├─ test_ghost_headless.js   ★ P1-c.1 幽灵竞速：录制 + 分享码编解码 + 挑战锁难度（34 项）
 │     ├─ test_fp3d_smoke.js       ★ 第一人称 3D 渲染路径冒烟（7 项，只验 SALVAGE 渲染）
 │     ├─ test_breach_headless.js  ★ BREACH 旧案回归（66 项，针对 game/legacy 快照）
 │     ├─ test_surge_headless.js   ★ SURGE 旧案回归（19 项，针对 game/legacy 快照）
@@ -91,6 +98,7 @@ TIDELINE/
 | 05_重新定位与上线方案 | 单人 PvE 撤离重新定位 | ✅ 落地面向 |
 | 06_完整设定集·单人版 | 单人版完整设定 | ✅ 落地面向 |
 | 07_综合决策与执行方案 | **裁定 BREACH/SURGE 作废、门面只留 SALVAGE** | ✅ 已执行 |
+| 08_P1设计路线图 | 人物（成就式解锁）/ 场景（地图配置化+M02 泄洪）/ 多人（幽灵竞速） | 🔄 P1-a 已落地 |
 
 **已落地系统（产品门面）**：
 
@@ -115,8 +123,17 @@ TIDELINE/
 在 `game/` 目录下运行：
 
 ```bash
-# SALVAGE 单人撤离仿真（23 项，针对 web/index.html）：潮汐上涨/撤离判定/超时结算/全实体压力跑
+# SALVAGE 单人撤离仿真（33 项）：潮汐三阶段/撤离门槛/超时结算/全实体压力跑/新手局
 node tools/test_salvage_headless.js
+
+# 干员被动 / 深水降级 / 战斗数值（22 项）：8 名干员的每个被动都必须测得出差异
+node tools/test_ops_headless.js
+
+# 开局静默期（13 项）：出生点 15m 安全圈 / 前 15s 敌人休眠 / 苏醒反应延迟
+node tools/test_grace_headless.js
+
+# 成就式解锁（36 项）：三层提示 / 成就与次数双路径 / 局内实时追踪 / 就差一点 / 结算闭环
+node tools/test_unlock_headless.js
 
 # 第一人称 3D 渲染路径（7 项，只验 SALVAGE 渲染）：FP.init / FP.render / FP.renderSalvage 跑帧无异常
 node tools/test_fp3d_smoke.js
@@ -131,7 +148,10 @@ node tools/test_surge_headless.js
 python tools/sim_verify.py
 ```
 
-> 当前状态：SALVAGE 23/23 · 3D 路径 7/7 · BREACH(legacy) 66/66 · SURGE(legacy) 19/19 全过。
+> 当前状态：**239 项全过** —— SALVAGE 33 · 干员 22 · 解锁 36 · 静默期 13 · 地图确定性 9 · 幽灵竞速 34 · 3D 路径 7 · BREACH(legacy) 66 · SURGE(legacy) 19。
+>
+> 注意：4 个测试脚本曾长期用 `match(/<script>/)[1]` 抓取**第一个**内联脚本（即 three.js 库），
+> 主逻辑根本没被执行 —— 测试是假通过的。已于 2026-08-29 修正为取最后一个 `<script>` 块。
 
 ---
 
@@ -139,9 +159,11 @@ python tools/sim_verify.py
 
 - **真多人实时联机**需要独立后端（WebSocket/专用服务器 + 反作弊），静态托管给不了；
   旧案 BREACH/SURGE 的多人设想已随归档搁浅，当前产品为纯单人 PvE。
+  但「和朋友一起玩」有零后端解法：**幽灵竞速** —— 利用「潮汐完全确定、不随机」这条设定红线，
+  两人跑的是同一条水位曲线，用分享码异步竞速，数学上比实时多人更公平。详见 `08_P1设计路线图.md` §04。
 - **可执行包（.exe）** 需你在本机：装 Godot 4.3 → 装 Win 导出模板 →
   改 `game/build_dist.bat` 的 `GODOT` 路径 → 双击运行。沙箱出口带宽受限，无法在此产出。
-- 待办（按设计文档）：地图 M02–M06 / 可破坏场景 / 交易市场 / 排位赛 / 反作弊。
+- 待办（按 08 号路线图排期）：~~成就式干员解锁~~ ✅ / 幽灵竞速（下一个）/ 地图配置化 / 专长系统 / M02 白象街。
 - BREACH / SURGE 相关待办随归档一并冻结，除非未来文档重新裁定。
 
 ---
@@ -156,12 +178,13 @@ python tools/sim_verify.py
   2. 仓库 **Settings → Pages → Source** 选 **Deploy from a branch** → 分支 `main` + 目录 `/ (root)` → Save；
   3. 访问 `https://<用户名>.github.io/<仓库名>/web/`。
 
-### 关于 Three.js CDN 依赖
-`web/index.html` 通过 `https://cdnjs.cloudflare.com/.../three.min.js (r128)` 加载 3D 引擎。
-- 联网时一切正常（托管访客默认可用）。
-- **离线 / 自包含方案**：下载 `three.min.js`（r128）放到 `web/vendor/three.min.js`，
-  并把 `index.html` 中 `<script src="...cdnjs...">` 改为 `<script src="vendor/three.min.js">`。
-  （`.gitignore` 已放行 `web/vendor/`。本仓库因沙箱无外网，未预置该文件。）
+### 关于 Three.js：已内联，无 CDN 依赖
+`web/index.html` **已经把 three.js (r128) 整段内联**在文件首个 `<script>` 内（约 574KB），
+**不请求任何外部资源**：断网双击即玩，部署到任意静态托管也不需要配 vendor 目录。
+
+> 因此曾经的 `web/index.offline.html` 已失去存在意义（它同样内联 three.js，但标题屏是旧版 UI，
+> 打开它会看到过时界面）。该文件已于 2026-08-29 归档至 `game/legacy/`，**不再维护**。
+> `web/` 目录现在只有 `index.html` 一个文件 —— 门面只有一张脸。
 
 ### 推送到 GitHub（如需，此步骤需你提供仓库地址）
 当前已 `git init` 并在本地提交。推送到 GitHub 需你：
@@ -176,6 +199,40 @@ python tools/sim_verify.py
 
 ---
 
-_最后更新：2026-08-29 产品重新定位——门面只留 **SALVAGE 单人潮汐撤离**。主页重构为叙事化旱坞（债务 / 信用点 / 撤离次数三数字常驻，目标「还清 12000 债务·上岸」），部署屏按累计撤离次数解锁 8 干员 / 3 枪；BREACH 5v5 与 SURGE 12v12 被 07 号文档裁定为作废旧案，从入口移除并整段归档至 `game/legacy/`（完整快照可回归）。修复一处严格模式回归：补回遗漏的 `let last=0, running=false;` 声明，使 SALVAGE 3D 渲染路径恢复正常。测试：SALVAGE 23/23、3D 路径 7/7（已剔除 SURGE 渲染断言）、BREACH(legacy) 66/66、SURGE(legacy) 19/19 全过。_
+_最后更新：2026-08-29 晚 · **P0 收口 + P1 路线图**。_
 
-_注：SALVAGE 仿真逻辑此前由外部模型提供，我已审计命名冲突（`rnd`→`srnd`）并加 `localStorage` 保护；3D 画面与玩法未经真实浏览器肉眼验收，靠渲染路径冒烟测试证明不抛错。_
+**本轮修掉的硬伤**（详见 `08_P1设计路线图.md` §01）：
+1. **通关漏洞**：出生点 `(-27,0)` 正是撤离点「船坞闸门」，站定 8 秒即可空手撤离。出生点外移至 `(-24,2)`，且撤离要求至少携带 1 件战利品。
+2. **数值失控**：拾荒者 DPS ≈ 82（玩家 2 秒阵亡）。新建 `Combat` 数值总表，单敌 @10m ≈ 16 DPS、三敌围攻 3.2 秒致命。
+3. **干员空壳**：8 名干员中 7 名只有 `wading:1`，被动全空。8 个被动全部落地并逐条断言。
+4. **实现与设计不符**：「干足」的 `wading` 错误作用于背包重量惩罚而非涉水减速，已修正。
+5. **文档承诺未兑现**：§3.1「深水降级为手枪」此前只有文字，已实现；掠波免疫降级，成为其独占价值。
+6. **手感**：静默期结束瞬间敌人立刻开火 → 改为 0.6~1.6s 随机反应延迟。
+7. **陷阱文件**：`web/index.offline.html`（内联 three.js 却用旧版 UI）归档至 `game/legacy/`，`web/` 只剩一张脸。
+
+**测试**：160 项全过。另修复 4 个测试脚本的历史缺陷——它们长期抓取**第一个**内联 `<script>`（three.js 库）而非主逻辑，导致回归测试形同虚设。
+
+---
+
+_2026-08-30 · **P1-a 成就式解锁落地**（`08_P1设计路线图.md` §2.3）。_
+
+干员解锁从「纯次数」改回设定集 §2.2 的**成就式混合制**，并配**三层提示**：
+
+| 层 | 时机 | 玩家看到什么 |
+|:--:|---|---|
+| 锁定卡 | 局前 | 「一枪不开地回来」+ 成就条件全文 + 保底进度 |
+| 局内 HUD | 局中 | 「◈ 无痕 · 零击杀 —— 可解锁「掠波」」实时追踪 |
+| 结算屏 | 局后 | 「★ 新解锁：干员「掠波」（成就达成）」或「就差一点：再贪 ⌾700 就能解锁「渔火」」 |
+
+**局内那层是关键**：只在锁定卡上写"一枪不开地回来"，玩家遇敌时会本能开枪并彻底忘记目标。
+HUD 上的实时追踪把隐形目标变成可见赌注——而零击杀是二元的、一次失误永久破功，尤其必须实时可见。
+
+两个配套决策：
+- **保底路径延后一档**（原 2/4/6…14 次 → 3/5/7…15 次），让成就路径明显更快，否则教学功能再次落空。
+- **锁定卡不再用 `opacity:.45` 压暗**（那样读不清成就条件），改为虚线边框 + 姓名淡化。
+
+回归测试新增 36 项（合计 196 项）。测试首次运行即抓到两个真 bug：
+`OPS[].unlock` 与 `UNLOCKS[].runs` 数值不一致；`renderDeploy()` 里 `this` 误指向 MenuShell
+（该 bug 只在真实渲染 DOM 时暴露，纯函数测试发现不了）。
+
+_注：SALVAGE 仿真逻辑此前由外部模型提供；3D 画面与玩法未经真实浏览器肉眼验收，靠渲染路径冒烟测试证明不抛错。_

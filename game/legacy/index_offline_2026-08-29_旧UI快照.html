@@ -2091,6 +2091,15 @@ const lerp  = (a,b,t)=>a+(b-a)*t;
 const smoothstep = t=>(t=clamp(t,0,1),t*t*(3-2*t));
 const dist = (a,b)=>Math.hypot(a.x-b.x, a.z-b.z);
 const srnd  = (a,b)=>a+Math.random()*(b-a);
+// 地图上离某点最远的格点（安全生成兜底用，保证绝不落在出生点附近）
+function farthestPoint(from){
+  let best={x:0,z:0}, bd=-1;
+  for(let j=0;j<MapHeight.nz;j++) for(let i=0;i<MapHeight.nx;i++){
+    const p={x:(i+.5)*MapHeight.CELL-MapHeight.W/2, z:(j+.5)*MapHeight.CELL-MapHeight.D/2};
+    const d=dist(p,from); if(d>bd){ bd=d; best=p; }
+  }
+  return best;
+}
 
 // ---- 埋点（H1'/H2'/H3' 远程验证，07文档 §04）----
 const Telemetry = {
@@ -2136,7 +2145,11 @@ const TideMission = {
     const t2=this.t+sec, ph=this.PHASES.find(p=>t2>=p.t0&&t2<p.t1);
     return ph ? lerp(ph.l0,ph.l1,(t2-ph.t0)/(ph.t1-ph.t0)) : 3.20;
   },
-  remaining(){ return Math.max(0, this.HARD_CAP-this.t); }
+  remaining(){ return Math.max(0, this.HARD_CAP-this.t); },
+  // ---- 开局静默期：新手观察窗口。期间所有敌人休眠（不移动/不索敌/不开火）----
+  GRACE_SEC: 15,
+  graceActive(){ return this.running && this.t < this.GRACE_SEC; },
+  graceLeft(){ return Math.max(0, this.GRACE_SEC - this.t); }
 };
 // 初始化一份可执行拷贝，避免 PHASES 为 null
 TideMission.PHASES = TideMission.BASE_PHASES.map(p=>({...p}));
@@ -2279,6 +2292,8 @@ class Scavenger{
   }
   update(dt,player){
     if(this.state==='DEAD') return;
+    // ★ 开局静默期：完全休眠。不移动、不索敌、不开火，给玩家 15s 观察窗口
+    if(TideMission.graceActive()) return;
     const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
     // ★ 潮汐响应：预判30s后水位，提前撤往高地（命门，不可砍）
     if(this.state!=='COMBAT'){
@@ -2334,6 +2349,8 @@ class SalvageDrone{
     this.hp=60; this.state='PATROL'; this.fireCd=0; this.wT=0; this.called=false; this.tgt=null;
   }
   update(dt,player,scavs){
+    // ★ 开局静默期：不索敌、不开火、不召集拾荒者
+    if(TideMission.graceActive()) return;
     const high=TideMission.phase==='High';
     const sp=5.0*(high?1.5:1), range=high?40:26;
     const d=dist(this.pos,player.pos);
@@ -2376,6 +2393,8 @@ class TideWarden{
       Telemetry.log('warden_down',{level:TideMission.level}); } }
   update(dt,player){
     if(this.state==='DEAD') return;
+    // ★ 开局静默期：守望者同样休眠，避免玩家主动推进时被秒
+    if(TideMission.graceActive()) return;
     const d=dist(this.pos,player.pos);
     if(!player.dead && d<20){
       this.fireCd-=dt;
@@ -2439,19 +2458,40 @@ const Mission = {
     BackPack.items=[]; PlayerMission.reset(); Extraction.reset();
     Extraction.alwaysShow = isFirstRun;   // 撤离点全程高亮，新手不会迷路
     WaterState.cur=0;
+    // ★ 出生点安全半径：任何敌人都不得生成在玩家出生点 SAFE_R 米内
+    const SAFE_R = 15;
+    const spawn = PlayerMission.pos;          // reset() 已把玩家放回出生点 (-27,0)
+    // 随机安全点：反复采样，直到落在安全半径外
+    const safePoint = (minDist, maxElev)=>{
+      for(let k=0;k<80;k++){
+        const p = MapHeight.randomLowPoint(maxElev);
+        if(dist(p, spawn) >= minDist) return p;
+      }
+      return farthestPoint(spawn);            // 兜底：取地图上离出生点最远的格点
+    };
     this.entities.scavs=[];
     const scavCount = isFirstRun ? 6 : 12;   // 敌人减半
     for(let i=0;i<scavCount;i++)
-      this.entities.scavs.push(new Scavenger(MapHeight.randomLowPoint(1.0)));
-    this.entities.drones=[[-20,10],[20,-15],[0,18],[-15,-5]]
-      .map(p=>new SalvageDrone({x:p[0],z:p[1]}));
+      this.entities.scavs.push(new Scavenger(safePoint(SAFE_R, 1.0)));
+    // 固定点位先过滤掉危险点（[-20,10]≈12m、[-15,-5]≈13m 都在出生点 15m 内），不足再补
+    const droneSpots=[[-20,10],[20,-15],[0,18],[-15,-5]]
+      .map(p=>({x:p[0],z:p[1]}))
+      .filter(p=>dist(p,spawn)>=SAFE_R);
+    while(droneSpots.length<4) droneSpots.push(safePoint(SAFE_R, 99));
+    this.entities.drones = droneSpots.map(p=>new SalvageDrone(p));
     this.entities.warden=new TideWarden({x:0,z:0});
     if(isFirstRun){ PlayerMission.armor=50; PlayerMission.maxArmor=50; }  // 开局赠 1 级护甲
     this.state='RUNNING'; Telemetry.log('mission_start',{novice:isFirstRun});
   },
+  onGraceEnd:null,
   update(dt){
     if(this.state!=='RUNNING') return;
+    const wasGrace = TideMission.graceActive();
     TideMission.tick(dt);
+    if(wasGrace && !TideMission.graceActive()){   // 静默期结束：给一次明确警示
+      Telemetry.log('grace_end',{t:TideMission.t});
+      if(this.onGraceEnd) this.onGraceEnd();
+    }
     const p=PlayerMission;
     this.entities.scavs.forEach(s=>s.update(dt,p));
     this.entities.drones.forEach(d=>{ if(d.state!=='DEAD') d.update(dt,p,this.entities.scavs); });
@@ -2506,6 +2546,7 @@ function showRuleReminder(){
     `<div class="rrow low">${low} 低潮：搜刮物资</div>`+
     `<div class="rrow rising">${ris} 涨潮：水位上涨，通路消失</div>`+
     `<div class="rrow high">${hig} 满潮：冲向撤离点</div>`+
+    `<div class="rnote gracetip">开局 ${Math.round((typeof TideMission!=='undefined'?TideMission.GRACE_SEC:15))} 秒敌方静止 —— 先观察地形，再决定路线</div>`+
     `<div class="rnote">记住：没撤出，一切沉底</div>`;
   el.classList.add('on');
   clearTimeout(el._t1); clearTimeout(el._t2);
@@ -2527,6 +2568,7 @@ function startSalvage(cfg){
   if(FP.ok){ FP.buildSalvage(); FP.setSceneMode("salvage"); }
   salvMuzzle=0; salvCd=0; salvReloadT=0; salvWarn=""; salvWarnT=0; stepAccum=0;
   TideMission.onWarning = (name)=>{ salvWarn="⚠ 潮汐预警："+name+" 段即将到来"; salvWarnT=4; AUD.warn(); };
+  Mission.onGraceEnd = ()=>{ salvWarn="⚠ 静默期结束：敌方开始行动"; salvWarnT=3.5; AUD.warn(); };
   TideMission.onPhaseChange = (name)=>{ salvWarn="潮汐进入 "+name+" 段"; salvWarnT=3; };
   MenuShell.hideAll();
   screen="play"; running=true; last=performance.now();
@@ -2671,6 +2713,10 @@ function drawSalvageHUD(){
   const active=Extraction.active();
   ctx.fillStyle=active.length?"#7dffb0":"#ff9b7d";
   ctx.fillText(active.length?("可撤离："+active.map(p=>p.id).join(" / ")):"⚠ 暂无可用撤离点",16,68);
+  if(TideMission.graceActive()){   // 静默期倒计时：明确告诉玩家"现在是安全的"
+    ctx.fillStyle="#8fd3ff"; ctx.font="bold 13px sans-serif";
+    ctx.fillText("◈ 静默期 "+Math.ceil(TideMission.graceLeft())+"s —— 敌方尚未察觉，先观察地形 / 规划搜刮路线",16,88);
+  }
   const near=LootSystem.nearestLoot(P.pos,2.2);
   if(near){ ctx.fillStyle="#ffe08a"; ctx.font="15px sans-serif"; ctx.textAlign="center";
     ctx.fillText("按住 [F] 拾取 "+near.name+"（⌾"+near.value+"）",W/2,H-90); }

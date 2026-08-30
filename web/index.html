@@ -43,6 +43,25 @@
   .btn.ghost:hover{border-color:var(--orange);color:var(--orange)}
   .fineprint{margin-top:26px;font-size:12px;color:var(--dim);letter-spacing:.1em;text-align:center}
   .fineprint b{color:#9fb2bd}
+  #scr-title{justify-content:flex-start;padding-top:0;align-items:stretch}
+  #scr-title .topbar{position:absolute;top:18px;right:24px;display:flex;gap:18px;align-items:center;
+    font-size:13px;color:var(--dim);z-index:5}
+  #scr-title .topbar .tb b{color:#cfd8dc;font-weight:600;margin-left:4px}
+  #scr-title .topbar .tl{color:var(--dim);cursor:pointer;font-size:12px;letter-spacing:.1em;
+    text-decoration:none;padding:2px 0;transition:color .15s}
+  #scr-title .topbar .tl:hover{color:var(--orange)}
+  #scr-title .topdetail{position:absolute;top:48px;right:24px;font-size:12px;color:var(--dim);
+    text-align:right;z-index:5;letter-spacing:.05em}
+  #scr-title .topdetail b{color:var(--gold);font-weight:600;margin:0 2px}
+  #scr-title .topdetail .goal{color:#9fb2bd}
+  #scr-title .hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:48px;
+    padding-bottom:6vh}
+  #scr-title .hero .logo{font-size:min(15vw,120px);letter-spacing:.25em;margin:0;text-indent:.25em}
+  #scr-title .hero .logo span{display:none}
+  #scr-title .hero-go{padding:18px 64px;font-size:19px;letter-spacing:.4em;text-indent:.4em;min-width:240px}
+  #scr-title .hero-acts{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap}
+  /* 挑战是次级动作：解锁后与「开始撤离」同排，但视觉权重必须明显弱于它 */
+  #scr-title #btn-challenge{padding:18px 30px;font-size:15px;letter-spacing:.24em;text-indent:.24em;min-width:150px}
   #scr-deploy{justify-content:flex-start;padding-top:4vh}
   .dep-head{display:flex;align-items:center;gap:18px;margin-bottom:14px;width:min(980px,94vw)}
   .dep-head h2{font-size:22px;letter-spacing:.2em}
@@ -56,7 +75,14 @@
   .opcard{min-width:150px;max-width:150px;background:var(--panel);border:1px solid var(--line);
     border-radius:6px;padding:9px 11px;cursor:pointer;flex-shrink:0}
   .opcard.sel{border-color:var(--orange);box-shadow:0 0 0 1px var(--orange)}
-  .opcard.lock{opacity:.45;cursor:not-allowed}
+  /* 锁定卡是钩子，不是障碍：不整体压暗（那样成就条件就看不清了），
+     改用虚线边框 + 淡化姓名来区分，保证上面那句「一枪不开地回来」读得到 */
+  .opcard.lock{opacity:1;cursor:not-allowed;border-style:dashed;
+    background:rgba(120,150,175,.05)}
+  .opcard.lock .nm,.opcard.lock .rl{color:var(--dim)}
+  .opcard .lk b{display:block;font-size:11.5px;color:#ffd98a;font-weight:700}
+  .opcard .lk .pg{display:block;color:var(--ok);font-size:10.5px}
+  .opcard .lk .fb{display:block;color:var(--dim);font-size:10px}
   .opcard .nm{font-weight:700;font-size:14px}
   .opcard .nm em{font-style:normal;color:var(--dim);font-size:11px;margin-left:4px}
   .opcard .rl{font-size:11px;color:var(--orange);margin:2px 0 4px}
@@ -99,6 +125,34 @@
   .rv-line b{color:var(--gold)}
   .unlock{margin:14px 0;padding:10px 14px;border:1px solid var(--gold);border-radius:6px;
     color:var(--gold);font-size:13px}
+  /* 「就差一点」复玩钩子：失败的结算也要给下一局一个明确目标 */
+  .nearmiss{margin:12px 0;padding:10px 14px;border:1px dashed var(--line);border-radius:6px;
+    font-size:12.5px;color:#cfe0ec;line-height:1.75;background:rgba(120,150,175,.06)}
+  .nearmiss .nmh{display:block;font-size:10.5px;letter-spacing:.22em;
+    color:var(--dim);margin-bottom:4px}
+  /* 潮痕分享码：等宽字体 + 可整段全选，方便玩家复制发给朋友 */
+  .tidecode{margin:12px 0;padding:10px 14px;border:1px solid var(--line);border-radius:6px;
+    background:rgba(120,150,175,.06)}
+  .tidecode .tch{display:block;font-size:10.5px;letter-spacing:.22em;
+    color:var(--dim);margin-bottom:6px}
+  .tidecode textarea{width:100%;height:64px;resize:none;box-sizing:border-box;
+    background:rgba(6,10,16,.85);color:#9fd6ff;border:1px solid var(--line);border-radius:4px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;padding:8px}
+  .tidecode .hint{display:block;margin-top:6px;font-size:11.5px;color:var(--dim)}
+  .tidecode .okmsg{color:var(--ok)} .tidecode .errmsg{color:var(--danger)}
+  /* 快速上手（P1-c.3）：进局前教「撤离」是什么 —— 目标 / 节奏 / 失败 / 操作 四栏图文 */
+  .howto .howto-pitch{text-align:center;color:#c3d0d8;font-size:15px;line-height:1.7;margin:0 0 14px}
+  .howto .htide{margin:0 0 16px}
+  .howto .hrow{display:flex;gap:14px;align-items:flex-start;padding:13px 2px;border-top:1px solid var(--line)}
+  .howto .hic{flex:0 0 auto;width:38px;height:38px;border-radius:9px;display:flex;align-items:center;
+    justify-content:center;font-size:15px;font-weight:700;color:#14100b}
+  .howto .hic.goal{background:var(--ok)} .howto .hic.rhythm{background:var(--orange)}
+  .howto .hic.death{background:var(--danger)} .howto .hic.ctrl{background:#7fb2d8}
+  .howto .ht h4{margin:0 0 5px;font-size:15px;color:#e7eef2;letter-spacing:.08em}
+  .howto .ht p{margin:0;font-size:13.5px;line-height:1.75;color:#aebfc9}
+  .howto .ht p b{color:#dfe8ed;font-weight:600}
+  .howto .kc{display:inline-block;padding:1px 7px;margin:0 2px;border:1px solid var(--line);
+    border-radius:4px;background:rgba(255,255,255,.04);color:#cfe0ea;font-size:12px;letter-spacing:.04em}
   /* 局内规则浮窗（新手引导）：开局浮现三幕时间轴，数秒后淡出 */
   #rule-reminder{position:fixed;top:42%;left:50%;transform:translate(-50%,-50%);z-index:50;
     background:rgba(10,16,24,.93);border:1px solid var(--orange);border-radius:10px;
@@ -128,29 +182,27 @@
 <canvas id="bg"></canvas>
 <div id="vig"></div>
 
-<!-- ① 标题屏（干船坞） -->
+<!-- ① 标题屏（干船坞 · 极简风） -->
 <div class="screen on" id="scr-title">
-  <div class="tagline">TIDELINE · 单人潮汐撤离</div>
-  <div class="logo">潮 线<span>SALVAGE THE TIDE</span></div>
-  <div class="pitch">
-    海水每年吞掉你的村庄。<b>你是潮民</b>，欠着上岸的债。<br>
-    潜入涨潮前的废弃船坞，<b>打捞值钱的东西，活着撤出来</b>。<br>
-    还清债务，你才能离开这片潮水。
+  <div class="topbar">
+    <span class="tb">债务 <b id="st-debt">—</b></span>
+    <span class="tb">撤离 <b id="st-extract">—</b></span>
+    <a class="tl" id="btn-detail" role="button">详情</a>
+    <a class="tl" id="btn-howto" role="button">玩法</a>
   </div>
-  <div class="statusbar" id="st-title">
-    <div>债务 <span class="v" id="st-debt">—</span></div>
-    <div>撤离次数 <span class="v" id="st-extract">—</span></div>
-    <div class="detail" id="st-detail" hidden>
-      <div>信用点 <span class="v" id="st-credits">—</span></div>
-      <div class="goal">目标：还清债务，上岸</div>
+  <div class="topdetail" id="st-detail" hidden>
+    信用点 <b id="st-credits">—</b>　·　<span class="goal">目标：还清债务，上岸</span>
+  </div>
+  <div class="hero">
+    <div class="logo">潮线</div>
+    <div class="hero-acts">
+      <button class="btn primary hero-go" id="btn-start">开始撤离</button>
+      <!-- 快速上手：常驻入口，随时回看；首次打开还会自动弹出（见 MenuShell.init） -->
+      <button class="btn ghost hero-go" id="btn-howto-hero">怎么玩</button>
+      <!-- 挑战入口：仅完成过满编局撤离后才显示。没打过一局的玩家看到它毫无意义 -->
+      <button class="btn ghost hero-go" id="btn-challenge" style="display:none">挑战潮痕</button>
     </div>
   </div>
-  <div class="btnrow">
-    <button class="btn primary" id="btn-start">开 始 撤 离</button>
-    <button class="btn ghost" id="btn-detail">查 看 详 情</button>
-    <button class="btn ghost" id="btn-howto">怎 么 玩</button>
-  </div>
-  <div class="fineprint">一局约 <b>12 分钟</b> · 第一/第三人称 · 阵亡则丢失本局战利品 · <b>WASD</b> 移动 · <b>鼠标</b> 瞄准 · <b>左键</b> 开火 · <b>R</b> 换弹 · <b>F</b> 拾取 · <b>E</b> 撤离</div>
 </div>
 
 <!-- ② 部署屏 -->
@@ -208,9 +260,53 @@
     <div class="rv-line">撤离时潮汐阶段：<b id="rv-phase">—</b></div>
     <div class="rv-line">击杀：<b id="rv-kills">—</b> · 受到伤害：<b id="rv-dmg">—</b> · 剩余血量：<b id="rv-hp">—</b></div>
     <div class="unlock" id="rv-unlock" style="display:none"></div>
+    <div class="nearmiss" id="rv-nearmiss" style="display:none"></div>
+    <!-- 潮痕分享：仅「满编局成功撤离」才出现 —— 阵亡的一局没有可被竞速的终点 -->
+    <div class="tidecode" id="rv-tidecode" style="display:none">
+      <span class="tch">本 局 潮 痕</span>
+      <textarea id="rv-code" readonly></textarea>
+      <span class="hint" id="rv-code-hint">复制这串码发给朋友，他将在同一张图上与你的幽灵竞速。</span>
+    </div>
     <div class="btnrow">
       <button class="btn primary" id="btn-again">再 次 撤 离</button>
+      <button class="btn ghost" id="btn-tide-mark" style="display:none">生 成 潮 痕</button>
       <button class="btn ghost" id="btn-result-back">返 回 干 船 坞</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ 模态：挑战（粘贴好友潮痕 → 同图同难度竞速） -->
+<div class="modal" id="m-challenge">
+  <div class="mbox">
+    <div class="rv-big" style="font-size:22px;letter-spacing:.2em;margin-bottom:8px">挑 战 潮 痕</div>
+    <div class="rv-line">粘贴好友分享的潮痕码，你们将在<b>同一张地图、同一难度</b>下竞速。</div>
+    <div class="tidecode">
+      <span class="tch">对 方 的 潮 痕 码</span>
+      <textarea id="ch-code" placeholder="在此粘贴潮痕码…"></textarea>
+      <span class="hint" id="ch-msg">粘贴后会自动校验并解析。</span>
+    </div>
+    <div class="rv-line" id="ch-info" style="display:none"></div>
+    <div class="btnrow">
+      <button class="btn primary" id="btn-ch-start" disabled>开 始 竞 速</button>
+      <button class="btn ghost" id="btn-ch-back">返 回</button>
+    </div>
+  </div>
+</div>
+
+<!-- 快速上手（P1-c.3）：进局前教玩家「撤离」意味着什么。首次打开自动弹出，主菜单常驻「怎么玩」入口 -->
+<div class="modal" id="m-howto">
+  <div class="mbox howto">
+    <div class="rv-big">快 速 上 手</div>
+    <div class="rv-line howto-pitch">潮线 · 潮汐撤离：水位在涨，退路在消失。你只有 10 分钟，带着搜刮到的物资登上撤离船。</div>
+    <div class="htide tidebar">
+      <div class="low">低潮 3:00</div><div class="rising">涨潮 4:00</div><div class="high">满潮 3:00</div>
+    </div>
+    <div class="hrow"><div class="hic goal">目</div><div class="ht"><h4>目标</h4><p>在低潮、涨潮时搜刮物资，在<b>满潮前</b>抵达撤离点（站 8 秒）登船。带出的物资换成信用点，用来还债、解锁干员。</p></div></div>
+    <div class="hrow"><div class="hic rhythm">节</div><div class="ht"><h4>节奏</h4><p><b>低潮 0–3min</b> 搜刮 → <b>涨潮 3–7min</b> 水位上涨、通路消失，开始转移 → <b>满潮 7–10min</b> 冲向撤离点。开局 <b>15 秒</b>敌方静止，先观察地形再决定路线。</p></div></div>
+    <div class="hrow"><div class="hic death">险</div><div class="ht"><h4>失败</h4><p>超时或阵亡 = 本局搜刮的物资全部沉底，并可能加重债务。<b>前两次进入有特殊新手保护</b>（慢潮、减敌、出生点旁有起步补给）。</p></div></div>
+    <div class="hrow"><div class="hic ctrl">操</div><div class="ht"><h4>操作</h4><p><span class="kc">W A S D</span> 移动　<span class="kc">鼠标</span> 瞄准　<span class="kc">左键</span> 射击　<span class="kc">F</span> 拾取 / 撤离　<span class="kc">R</span> 换弹</p></div></div>
+    <div class="btnrow">
+      <button class="btn primary" id="btn-howto-close">开 始 玩</button>
     </div>
   </div>
 </div>
@@ -1922,16 +2018,105 @@ function loop(now) {
 const $ = id => document.getElementById(id);
 const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
+// desc 必须与代码里的实际效果一致——写在卡片上的承诺，进局就要兑现
 const OPS = [
-  {id:'kestrel',  name:'隼',   role:'突破', passive:'干足', desc:'涉水速度惩罚减半，且不留噪音波纹。', unlock:0},
-  {id:'cauldron', name:'沸釜', role:'突破', passive:'超压', desc:'正面硬刚，对潮生怪物伤害更高。', unlock:2},
-  {id:'lamplight',name:'渔火', role:'控场', passive:'潮感', desc:'近距离持续显示敌人轮廓。', unlock:4},
-  {id:'bulwark',  name:'堤',   role:'控场', passive:'锚定', desc:'静止时更稳，散布更低。', unlock:6},
-  {id:'skimmer',  name:'掠波', role:'机动', passive:'水面张力', desc:'可在水面短冲不沉。', unlock:8},
-  {id:'gannel',   name:'渠',   role:'机动', passive:'绳忆', desc:'移动与换弹更快。', unlock:10},
-  {id:'ledger',   name:'账房', role:'支援', passive:'打捞权', desc:'撤离收益额外加成。', unlock:12},
-  {id:'dredger',  name:'浚',   role:'支援', passive:'回潮', desc:'残血时移速与换弹提升。', unlock:14}
+  {id:'kestrel',  name:'隼',   role:'突破', passive:'干足', desc:'涉水减速减半，涉水不留噪音波纹。', unlock:0},
+  // unlock = 保底次数路径，必须与 UNLOCKS[id].runs 完全一致（成就路径通常快得多）
+  {id:'cauldron', name:'沸釜', role:'突破', passive:'超压', desc:'霰弹伤害 +35%，正面硬刚流派的起点。', unlock:3},
+  {id:'lamplight',name:'渔火', role:'控场', passive:'潮感', desc:'底部雷达持续标记 15m 内敌人方位。', unlock:5},
+  {id:'bulwark',  name:'堤',   role:'控场', passive:'锚定', desc:'静止 1.5 秒后，受到的伤害 -25%。', unlock:7},
+  {id:'skimmer',  name:'掠波', role:'机动', passive:'水面张力', desc:'深水不降级手枪，游泳减速减半。', unlock:9},
+  {id:'gannel',   name:'渠',   role:'机动', passive:'绳忆', desc:'移速 +12%，换弹快 40%。', unlock:11},
+  {id:'ledger',   name:'账房', role:'支援', passive:'打捞权', desc:'拾取的战利品价值 +20%。', unlock:13},
+  {id:'dredger',  name:'浚',   role:'支援', passive:'回潮', desc:'血量低于 25% 时移速 +20%。', unlock:15}
 ];
+// ---- 干员解锁：成就路径（主）+ 撤离次数路径（保底）----
+// 成就路径的目的不是设门槛，而是**告诉玩家这个游戏还能怎么玩**。
+// 设定集 §2.2 原话：「SKIMMER 的解锁条件（全程不击杀）是刻意的：它教会玩家
+// 这个游戏可以不用打 —— 这是撤离游戏最反直觉也最迷人的一课。」
+// 因此锁定卡必须把这句话亮出来：锁定卡是钩子，不是障碍。
+const UNLOCKS = {
+  cauldron : {runs:3,  hint:'用霰弹清出一条路',   ach:{type:'kills',    n:5,    text:'单局击杀 5 个敌人并撤离'}},
+  lamplight: {runs:5,  hint:'贪一次大的',         ach:{type:'haul',     n:5000, text:'单次带出 ≥ ⌾5,000'}},
+  bulwark  : {runs:7,  hint:'站着打完一场',       ach:{type:'dmg',      n:800,  text:'单局承受 800 伤害并撤离'}},
+  skimmer  : {runs:9,  hint:'一枪不开地回来',     ach:{type:'nokill',   n:0,    text:'全程 0 击杀完成撤离'}},
+  gannel   : {runs:11, hint:'等到水漫过膝盖再走', ach:{type:'highTide', n:1,    text:'在满潮阶段成功撤离'}},
+  ledger   : {runs:13, hint:'攒够五万',           ach:{type:'totalHaul',n:50000,text:'累计带出 ≥ ⌾50,000'}},
+  dredger  : {runs:15, hint:'活着回来，哪怕只剩一口气', ach:{type:'lowHp', n:10, text:'血量 ≤ 10% 时成功撤离'}}
+};
+
+// ---- 成就判定 ----
+const achStore = ()=> (Meta && Meta.data && Meta.data.achDone) ? Meta.data.achDone : {};
+
+// 结算时判定：本局达成了哪些成就
+function evalAchievements(r){
+  const M = (Meta && Meta.data) ? Meta.data : {};
+  const totalHaul = M.totalHaul || 0;
+  const out = [];
+  for(const id in UNLOCKS){
+    const a = UNLOCKS[id].ach; if(!a) continue;
+    let ok = false;
+    switch(a.type){
+      case 'kills':     ok = !!r.extracted && (r.kills||0) >= a.n; break;
+      case 'haul':      ok = !!r.extracted && (r.value||0) >= a.n; break;
+      case 'dmg':       ok = !!r.extracted && (r.damageTaken||0) >= a.n; break;
+      case 'nokill':    ok = !!r.extracted && (r.kills||0) === 0; break;
+      case 'highTide':  ok = !!r.extracted && r.phase === 'High'; break;
+      case 'totalHaul': ok = totalHaul >= a.n; break;
+      case 'lowHp':     ok = !!r.extracted && (r.hpLeft||0) > 0 && (r.hpLeft||0) <= a.n; break;
+    }
+    if(ok) out.push(id);
+  }
+  return out;
+}
+
+// 跨局累积型成就的进度（单局型条件没有进度可显示）
+function achProgress(id){
+  const U = UNLOCKS[id]; if(!U) return null;
+  const M = (Meta && Meta.data) ? Meta.data : {};
+  if(U.ach.type === 'totalHaul') return {cur:Math.round(M.totalHaul||0), n:U.ach.n};
+  return null;
+}
+
+// 局内实时：本局此刻满足哪些成就条件（只显示尚未解锁的干员）
+// 这一层是 P1-a 的关键 —— 把隐形目标变成可见的赌注。
+// 玩家看到「◈ 无痕 · 零击杀 —— 可解锁掠波」，再遇到拾荒者时才会犹豫：
+// 是开枪，还是绕过去？那个犹豫的瞬间，就是这个设计要教的东西。
+function liveAchievements(){
+  const P = PlayerMission, out = [];
+  if(!P || P.dead) return out;
+  if((P.kills||0) === 0)           out.push({id:'skimmer',   tag:'无痕 · 零击杀'});
+  if(BackPack.value >= 5000)       out.push({id:'lamplight', tag:'满载 ⌾'+BackPack.value});
+  if((P.kills||0) >= 5)            out.push({id:'cauldron',  tag:'清场 '+P.kills+'/5'});
+  if((P.dmgTaken||0) >= 800)       out.push({id:'bulwark',   tag:'硬扛 '+Math.round(P.dmgTaken)+'/800'});
+  if(TideMission.phase === 'High') out.push({id:'gannel',    tag:'满潮 · 现在撤离'});
+  return out.filter(a=>!ShellMeta.opUnlocked(a.id));
+}
+
+// 「就差一点」：结算时给出明确的复玩钩子
+function nearMiss(r){
+  const out = [];
+  const M = (Meta && Meta.data) ? Meta.data : {};
+  const miss = (id,txt)=>{ if(!ShellMeta.opUnlocked(id)) out.push(txt); };
+  if(r.extracted){
+    if(r.value > 0 && r.value < 5000)
+      miss('lamplight','再贪 ⌾'+(5000-r.value)+' 就能解锁「渔火」');
+    if(r.kills > 0 && r.kills < 5)
+      miss('cauldron','再击杀 '+(5-r.kills)+' 个就能解锁「沸釜」');
+    if(r.damageTaken > 0 && r.damageTaken < 800)
+      miss('bulwark','再多扛 '+Math.round(800-r.damageTaken)+' 伤害就能解锁「堤」');
+    if(r.hpLeft > 10)
+      miss('dredger','血量压到 10% 以下撤离就能解锁「浚」');
+    if(r.phase !== 'High')
+      miss('gannel','撑到满潮再撤离就能解锁「渠」');
+  } else if((r.kills||0) === 0 && r.reason === 'killed'){
+    miss('skimmer','这局全程零击杀 —— 活着撤出去就能解锁「掠波」');
+  }
+  if((M.totalHaul||0) < 50000)
+    miss('ledger','累计再带出 ⌾'+(50000-Math.round(M.totalHaul||0))+' 就能解锁「账房」');
+  return out.slice(0,2);   // 最多两条，避免刷屏稀释重点
+}
+
 const GUNS = [
   {id:'K7',  name:'K-7 海鸦',  cls:'AR', dmg:24, rpm:600, desc:'均衡的打捞步枪，新手友好。', unlock:0},
   {id:'V31', name:'V-31 锈潮', cls:'AR', dmg:41, rpm:600, desc:'高伤步枪，弹匣较小。', unlock:3},
@@ -1943,12 +2128,32 @@ const SALVAGE_GUNS = {
   V31: {name:'V-31 锈潮', cls:'AR', dmg:41, rpm:600, cd:60/600, mag:20, range:55},
   A3 : {name:'A-3 潮涌',  cls:'SG', dmg:18, rpm:70,  cd:60/70,  mag:6,  range:30}
 };
+// 干员被动（06设定集 §2.3）——每个字段都直接驱动一处玩法，不允许"同名不同效"。
+//   wading    涉水减速系数（越小越不怕水）
+//   sgMult    霰弹伤害倍率          anchorT/anchorDR  静止多久后减伤多少
+//   senseR    潮感雷达半径（米）    swimOk            深水不降级副武器
+//   speedMult 全局移速倍率          reloadMult        换弹耗时倍率
+//   valueMult 战利品价值倍率        lowHp/lowHpSpeed  残血提速阈值与倍率
 const SALVAGE_OPS = {
-  kestrel:{name:'隼',  wading:0.5}, cauldron:{name:'沸釜', wading:1},
-  lamplight:{name:'渔火', wading:1}, bulwark:{name:'堤',  wading:1},
-  skimmer:{name:'掠波', wading:1}, gannel:{name:'渠',  wading:1},
-  ledger:{name:'账房', wading:1}, dredger:{name:'浚',  wading:1}
+  kestrel  :{name:'隼',   wading:0.50,
+             desc:'干足：涉水减速减半，涉水不留噪音波纹'},
+  cauldron :{name:'沸釜', wading:1.00, sgMult:1.35,
+             desc:'超压：霰弹伤害 +35%，正面硬刚的流派起点'},
+  lamplight:{name:'渔火', wading:1.00, senseR:15,
+             desc:'潮感：底部雷达持续标记 15m 内敌人方位'},
+  bulwark  :{name:'堤',   wading:1.00, anchorT:1.5, anchorDR:0.25,
+             desc:'锚定：静止 1.5 秒后受到伤害 -25%'},
+  skimmer  :{name:'掠波', wading:0.55, swimOk:true,
+             desc:'水面张力：深水不降级副武器，游泳减速减半'},
+  gannel   :{name:'渠',   wading:1.00, speedMult:1.12, reloadMult:0.60,
+             desc:'绳忆：移速 +12%，换弹快 40%'},
+  ledger   :{name:'账房', wading:1.00, valueMult:1.20,
+             desc:'打捞权：战利品价值 +20%'},
+  dredger  :{name:'浚',   wading:1.00, lowHp:0.25, lowHpSpeed:1.20,
+             desc:'回潮：血量低于 25% 时移速 +20%'}
 };
+// 取干员某字段（缺省回退到基准值），保证换干员时不会残留上一名的加成
+const opVal = (k, dflt) => (salvOp && salvOp[k] != null) ? salvOp[k] : dflt;
 const SalvageLoadout = {op:'kestrel', gun:'K7'};
 let salvGun = SALVAGE_GUNS.K7;
 let salvOp  = SALVAGE_OPS.kestrel;
@@ -1966,8 +2171,26 @@ const ShellMeta = {
   runs(){ return (typeof Meta!=='undefined' && Meta.data) ? Meta.data.runs : 0; },
   debt(){ return Math.max(0, this.INITIAL_DEBT - this.earned()); },
   credits(){ return Math.max(0, this.earned() - this.INITIAL_DEBT); },
-  opUnlocked(id){ const o=OPS.find(x=>x.id===id); return o ? this.extracted() >= o.unlock : false; },
+  // 双路径解锁：达成成就 **或** 累计撤离次数达标。
+  // 次数路径是保底，防止玩家卡在某个成就上产生挫败；成就路径才是教学主线。
+  opUnlocked(id){
+    const o=OPS.find(x=>x.id===id); if(!o) return false;
+    if((o.unlock||0) <= 0) return true;
+    if(this.extracted() >= o.unlock) return true;
+    return !!achStore()[id];
+  },
   gunUnlocked(id){ const g=GUNS.find(x=>x.id===id); return g ? this.extracted() >= g.unlock : false; },
+  // 锁定卡文案 = 勾人的一句话 + 成就条件 + 进度 + 保底路径
+  opLockText(id){
+    const U=UNLOCKS[id]; if(!U) return '继续撤离以解锁';
+    const p=achProgress(id);
+    const left=Math.max(0, U.runs - this.extracted());
+    return '<b>'+U.hint+'</b>'+U.ach.text+
+      (p ? '<span class="pg">'+p.cur+' / '+p.n+'</span>' : '')+
+      '<span class="fb">或再撤离 '+left+' 次</span>';
+  },
+  // 满编局（非新手教学壳）成功撤离次数 —— 主菜单「挑战」入口的解锁门槛
+  fullExtracts(){ return (typeof Meta!=='undefined' && Meta.data) ? (Meta.data.fullExtracts||0) : 0; },
   refreshStatus(){
     const set=(a,b)=>{ const e=$(a); if(e) e.textContent=b; };
     set('st-debt','⌾ '+this.debt());
@@ -1976,6 +2199,8 @@ const ShellMeta = {
     set('st-debt2','⌾ '+this.debt());
     set('st-credits2','⌾ '+this.credits());
     set('st-extract2',this.extracted()+' 次');
+    // 挑战入口：完成过满编局撤离才解锁。新手档成绩不算 —— 那是被削弱过的难度，没有可比性
+    const ch=$('btn-challenge'); if(ch) ch.style.display = this.fullExtracts()>0 ? '' : 'none';
   }
 };
 
@@ -2011,7 +2236,7 @@ const MenuShell = {
       opRow.innerHTML = OPS.map(o=>{
         const unlocked=ShellMeta.opUnlocked(o.id); const sel=this.selOp===o.id;
         const cls='opcard'+(sel?' sel':'')+(unlocked?'':' lock');
-        const lk = unlocked ? '' : '<div class="lk">撤离 '+o.unlock+' 次解锁</div>';
+        const lk = unlocked ? '' : '<div class="lk">'+ShellMeta.opLockText(o.id)+'</div>';
         return '<div class="'+cls+'" data-op="'+o.id+'">'+
           '<div class="nm">'+o.name+'<em>'+o.role+'</em></div>'+
           '<div class="rl">'+o.passive+'</div>'+
@@ -2040,7 +2265,8 @@ const MenuShell = {
     }
   },
   showResult(r){
-    r = r || {extracted:false,reason:'timeout',value:0,t:0,phase:'—',kills:0,damageTaken:0,hpLeft:0};
+    r = r || {extracted:false,reason:'timeout',value:0,t:0,phase:'—',
+              kills:0,damageTaken:0,hpLeft:0,newOps:[],nearMiss:[]};
     const big=$('rv-big');
     big.textContent = r.extracted ? '撤离成功' : (r.reason==='killed'?'你阵亡了':'潮水吞没了你');
     big.className = 'rv-big '+(r.extracted?'ok':'bad');
@@ -2052,28 +2278,113 @@ const MenuShell = {
     $('rv-hp').textContent = Math.round(r.hpLeft);
     const prev = ShellMeta.data ? ShellMeta.data.lastSeen : 0;
     const nowE = ShellMeta.extracted();
-    const newly=[];
-    OPS.forEach(o=>{ if(o.unlock>prev && o.unlock<=nowE) newly.push('干员「'+o.name+'」'); });
+    const newly = (r.newOps||[]).map(id=>{
+      const o=OPS.find(x=>x.id===id); return '干员「'+(o?o.name:id)+'」';
+    });
     GUNS.forEach(g=>{ if(g.unlock>prev && g.unlock<=nowE) newly.push('武器「'+g.name+'」'); });
     const ul=$('rv-unlock');
-    if(newly.length){ ul.style.display='block'; ul.textContent='★ 新解锁：'+newly.join('、'); }
-    else ul.style.display='none';
+    if(newly.length){
+      // 标明是靠成就还是靠次数解锁的：成就达成要被专门祝贺，那是我们想鼓励的玩法
+      const ach=(Meta.data && Meta.data.lastAch)||[];
+      const how = ach.length ? '（成就达成）' : '（累计撤离）';
+      ul.style.display='block'; ul.textContent='★ 新解锁：'+newly.join('、')+how;
+    } else ul.style.display='none';
+    // 「就差一点」：把失败或擦肩而过变成下一局的明确目标
+    const nm=$('rv-nearmiss'), near=(r.nearMiss||[]);
+    if(nm){
+      if(near.length && !newly.length){ nm.style.display='block';
+        nm.innerHTML='<span class="nmh">就差一点</span>'+near.map(s=>'⌁ '+s).join('<br>'); }
+      else if(near.length){ nm.style.display='block';
+        nm.innerHTML='<span class="nmh">下一个目标</span>'+near.map(s=>'⌁ '+s).join('<br>'); }
+      else nm.style.display='none';
+    }
     ShellMeta.data.lastSeen = nowE; ShellMeta.save();
     ShellMeta.refreshStatus();
+    // 潮痕分享门槛：只有「满编局 + 成功撤离」才给生成按钮。
+    // 阵亡的一局没有终点可被竞速；新手档是削弱过的难度——两者分享出去都是无意义的对比。
+    const canShare = !!(typeof LastGhost!=='undefined' && LastGhost && LastGhost.extracted && !LastGhost.novice);
+    this.canShare = canShare;   // 与 generateTideMark / pendingGhost 同挂 MenuShell，避免跨对象拿不到
+    const tm=$('btn-tide-mark'), tc=$('rv-tidecode');
+    if(tm) tm.style.display = canShare ? '' : 'none';
+    if(tc) tc.style.display = 'none';        // 每次结算先收起，避免上一局的码残留在新结算屏上
+    if($('rv-code')) $('rv-code').value = '';
     this.hideAll(); $('m-result').classList.add('on');
+  },
+  // ---- 潮痕分享（P1-c.2）----
+  // 生成并展示本局潮痕码。能否生成由 showResult 判定的 canShare 决定（满编局 + 成功撤离）
+  generateTideMark(){
+    if(!this.canShare || typeof LastGhost==='undefined' || !LastGhost) return null;
+    const code = GhostCodec.encode(LastGhost);
+    const box=$('rv-tidecode'), ta=$('rv-code'), hint=$('rv-code-hint');
+    if(!box || !ta) return null;
+    ta.value=code; box.style.display='block';
+    ta.focus(); ta.select();
+    // 复制：优先同步 execCommand（已选中，最可靠）；失败再退回异步 clipboard
+    let copied=false;
+    try{ copied = (typeof document!=='undefined' && document.execCommand) ? document.execCommand('copy') : false; }catch(e){ copied=false; }
+    if(!copied){ try{ if(typeof navigator!=='undefined' && navigator.clipboard) navigator.clipboard.writeText(code); copied=true; }catch(e){ copied=false; } }
+    const tail='（'+code.length+' 字符）：发给朋友，他将在同一张图上与你的幽灵竞速。';
+    if(hint) hint.textContent = (copied?'已复制到剪贴板':'请手动全选复制')+tail;
+    return code;
+  },
+  // 解析对方潮痕码：完整性校验 → 展示对手成绩 → 解锁「开始竞速」。失败返回 null 并给出原因
+  parseChallenge(code){
+    const msg=$('ch-msg'), info=$('ch-info'), btn=$('btn-ch-start');
+    const fail=(text)=>{ this.pendingGhost=null; if(btn) btn.disabled=true;
+      if(msg){ msg.className='hint errmsg'; msg.textContent=text; }
+      if(info) info.style.display='none'; return null; };
+    const g = GhostCodec.decode(code);
+    if(!g) return fail('潮痕码无效或已损坏 —— 请检查是否复制完整（需含结尾的 |xxxx 校验段）。');
+    if(!g.extracted) return fail('这份潮痕没有完成撤离，无法作为竞速目标。');
+    this.pendingGhost = g;
+    if(btn) btn.disabled=false;
+    const op =(typeof SALVAGE_OPS!=='undefined' && SALVAGE_OPS[g.op])  ? SALVAGE_OPS[g.op].name  : g.op;
+    const gun=(typeof SALVAGE_GUNS!=='undefined' && SALVAGE_GUNS[g.gun]) ? SALVAGE_GUNS[g.gun].name : g.gun;
+    if(msg){ msg.className='hint okmsg'; msg.textContent='校验通过 · 将沿用对手配置以保证公平。'; }
+    if(info){ info.style.display='block';
+      info.innerHTML='对手成绩：<b>'+Math.round(g.t)+'s</b> 撤离 · 战利品 <b>⌾ '+g.value+'</b> · 击杀 <b>'+g.kills+'</b><br>'
+        +'沿用配置：干员 <b>'+op+'</b> · 武器 <b>'+gun+'</b>'; }
+    return g;
   },
   init(){
     $('btn-start').addEventListener('click', ()=>{ AUD.resume(); this.renderDeploy(); this.show('scr-deploy'); });
-    $('btn-howto').addEventListener('click', ()=>{ $('m-howto').classList.add('on'); });
-    $('btn-howto-close').addEventListener('click', ()=>{ $('m-howto').classList.remove('on'); });
+    // 快速上手（P1-c.3）：主菜单「玩法」(topbar) 与「怎么玩」(hero) 都打开同一面板；
+    // 关闭时置 seenHowto=true 并持久化，保证首开自动弹后不再打扰老玩家。
+    const openHowto = ()=>{ const m=$('m-howto'); if(m) m.classList.add('on'); };
+    const closeHowto = ()=>{ const m=$('m-howto'); if(m) m.classList.remove('on');
+      if(typeof Meta!=='undefined' && Meta.data){ Meta.data.seenHowto=true; Meta.save(); } };
+    $('btn-howto').addEventListener('click', openHowto);
+    $('btn-howto-hero').addEventListener('click', openHowto);
+    $('btn-howto-close').addEventListener('click', closeHowto);
     $('btn-detail').addEventListener('click', ()=>{ const d=document.getElementById('st-detail'); if(d) d.hidden=!d.hidden; });
     $('btn-deploy-back').addEventListener('click', ()=>{ this.show('scr-title'); });
     $('btn-launch').addEventListener('click', ()=>{ AUD.resume(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
     $('btn-again').addEventListener('click', ()=>{ this.hideAll(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
     $('btn-result-back').addEventListener('click', ()=>{ this.hideAll(); this.show('scr-title'); });
+    // 潮痕分享（P1-c.2）：结算屏生成 → 主菜单挑战入口 → 粘贴解析 → 开始竞速
+    $('btn-tide-mark').addEventListener('click', ()=>{ this.generateTideMark(); });
+    $('btn-challenge').addEventListener('click', ()=>{
+      $('ch-code').value=''; $('ch-info').style.display='none'; $('btn-ch-start').disabled=true;
+      const m=$('ch-msg'); if(m){ m.className='hint'; m.textContent='粘贴后会自动校验并解析。'; }
+      this.pendingGhost=null;
+      this.hideAll(); $('m-challenge').classList.add('on');
+    });
+    $('btn-ch-back').addEventListener('click', ()=>{ this.hideAll(); this.show('scr-title'); });
+    $('ch-code').addEventListener('input', (e)=>{ this.parseChallenge(e.target.value); });
+    $('btn-ch-start').addEventListener('click', ()=>{
+      const g=this.pendingGhost; if(!g) return;
+      this.hideAll();
+      // 挑战局三要素：对方种子（c.0 复现同一张图）+ challenge:true（c.1 强制满编、取消教学壳）
+      // + 沿用对手干员/武器 —— 不同配置跑出来的成绩没有可比性。
+      if(this.onStart) this.onStart({op:g.op, gun:g.gun, seed:g.seed, challenge:true, ghost:g});
+    });
     this.onStart = cfg => startSalvage(cfg);
     bgAnim();
     this.show('scr-title');
+    // 首开自动弹出「快速上手」：仅当从未看过（seenHowto=false）。老玩家/回头客不再打扰。
+    if(typeof Meta!=='undefined' && Meta.data && !Meta.data.seenHowto){
+      const m=$('m-howto'); if(m) m.classList.add('on');
+    }
   }
 };
 
@@ -2091,6 +2402,28 @@ const lerp  = (a,b,t)=>a+(b-a)*t;
 const smoothstep = t=>(t=clamp(t,0,1),t*t*(3-2*t));
 const dist = (a,b)=>Math.hypot(a.x-b.x, a.z-b.z);
 const srnd  = (a,b)=>a+Math.random()*(b-a);
+// ---- 可重放随机数源（P1-c 幽灵竞速前置）----
+// 正常游玩：current = Math.random（行为完全不变）。
+// 幽灵挑战：注入种子后，地图生成（战利品 / 敌人初始位置）可精确复现，
+// 保证挑战双方跑的是同一张图。运行期 AI 仍走 Math.random，不影响手感。
+const Rng = {
+  current: ()=>Math.random(), _s:0,
+  seed(n){ this._s=(n>>>0)||1;
+    this.current=()=>{ let t=(this._s+=0x6D2B79F5);
+      t=Math.imul(t^(t>>>15), t|1); t^=t+Math.imul(t^(t>>>7), t|61);
+      return ((t^(t>>>14))>>>0)/4294967296; }; },
+  reset(){ this.current=()=>Math.random(); }
+};
+const rrnd = (a,b)=>a + Rng.current()*(b-a);
+// 地图上离某点最远的格点（安全生成兜底用，保证绝不落在出生点附近）
+function farthestPoint(from){
+  let best={x:0,z:0}, bd=-1;
+  for(let j=0;j<MapHeight.nz;j++) for(let i=0;i<MapHeight.nx;i++){
+    const p={x:(i+.5)*MapHeight.CELL-MapHeight.W/2, z:(j+.5)*MapHeight.CELL-MapHeight.D/2};
+    const d=dist(p,from); if(d>bd){ bd=d; best=p; }
+  }
+  return best;
+}
 
 // ---- 埋点（H1'/H2'/H3' 远程验证，07文档 §04）----
 const Telemetry = {
@@ -2136,10 +2469,29 @@ const TideMission = {
     const t2=this.t+sec, ph=this.PHASES.find(p=>t2>=p.t0&&t2<p.t1);
     return ph ? lerp(ph.l0,ph.l1,(t2-ph.t0)/(ph.t1-ph.t0)) : 3.20;
   },
-  remaining(){ return Math.max(0, this.HARD_CAP-this.t); }
+  remaining(){ return Math.max(0, this.HARD_CAP-this.t); },
+  // ---- 开局静默期：新手观察窗口。期间所有敌人休眠（不移动/不索敌/不开火）----
+  GRACE_SEC: 15,
+  graceActive(){ return this.running && this.t < this.GRACE_SEC; },
+  graceLeft(){ return Math.max(0, this.GRACE_SEC - this.t); }
 };
 // 初始化一份可执行拷贝，避免 PHASES 为 null
 TideMission.PHASES = TideMission.BASE_PHASES.map(p=>({...p}));
+
+// ---- 战斗数值总表（调平衡只改这里，三处敌人共用）----
+// 设计目标（06设定集 §4：拾荒者=中威胁 / 无人机=中高 / 守望者=高）：
+//   1 名敌人不构成死亡威胁 → 玩家有 6~9 秒反应窗口，可以打、可以跑、可以绕；
+//   2~3 名围攻才致命（约 3 秒）→ 保留「被包围就必须撤」的压迫感；
+//   满潮期无人机 ×1.6 → 兑现「满潮 = 无人机主场」的设定。
+// 期望 DPS（玩家 100 血 + 50 甲 = 150 有效血量）：
+//   拾荒者 @10m ≈ 0.34×14/0.30 ≈ 16  →  单挑 9.4s，三打一 3.1s
+//   无人机 @15m ≈ 0.30×10/0.30 ≈ 10  →  满潮 ×1.6 ≈ 16
+//   守望者 @10m ≈ 0.32×19/0.35 ≈ 17  →  满潮（含 level 加成）≈ 30，4.9s
+const Combat = {
+  scavenger:{ cd:0.30, hit:0.46, falloff:0.012, min:0.07, dmg:[11,17] },
+  drone:    { cd:0.30, hit:0.42, falloff:0.008, min:0.08, dmg:[7,13],  highMult:1.6 },
+  warden:   { cd:0.35, hit:0.50, falloff:0.018, min:0.12, dmg:[16,22], levelDmg:2.5 }
+};
 
 // ---- 地图标高（02文档 §2.2）----
 const MapHeight = {
@@ -2183,7 +2535,7 @@ const MapHeight = {
   },
   randomLowPoint(maxElev){
     for(let k=0;k<50;k++){
-      const p={x:srnd(-26,24), z:srnd(-18,16)};
+      const p={x:rrnd(-26,24), z:rrnd(-18,16)};   // rrnd→Rng.current：种子可复现地图
       if(this.sample(p.x,p.z)<=maxElev) return p;
     }
     return {x:0,z:0};
@@ -2219,14 +2571,27 @@ const LootSystem = {
   spawn(){
     this.items=[];
     for(let n=0;n<25;n++){
-      const r=Math.random();
+      const r=Rng.current();                 // rrnd 同源：种子可复现战利品布局
       const t=r<.03?3:r<.15?2:r<.40?1:0;
       const pos = t===3 ? MapHeight.randomLowPoint(0.3)
                 : t===2 ? MapHeight.randomLowPoint(1.2)
-                : { x:srnd(-27,27), z:srnd(-19,19) };
+                : { x:rrnd(-27,27), z:rrnd(-19,19) };
       const R=this.RARITY[t];
       this.items.push({ pos, rarity:t, name:R.name,
-        value:Math.round(srnd(R.v[0],R.v[1])), kg:srnd(0.5,1.5+t*2), taken:false });
+        value:Math.round(rrnd(R.v[0],R.v[1])), kg:rrnd(0.5,1.5+t*2), taken:false });
+    }
+    // ★ 新手起步战利品（仅教学壳）：出生点旁 8~10m 放 2 件普通补给，
+    //   保证「离开出生点 → 捡第一件 → 回船坞闸门撤离」这条教学主线一定走得通。
+    //   挑战模式(novice=false)不放，保持公平复现。位置用 rrnd（种子可复现）。
+    if(typeof Mission!=='undefined' && Mission.novice && typeof SPAWN_POS!=='undefined'){
+      const angs=[0.55, 2.45];
+      for(const ang of angs){
+        const r = rrnd(8,10);
+        const x = clamp(SPAWN_POS.x + Math.cos(ang)*r, -29, 29);
+        const z = clamp(SPAWN_POS.z + Math.sin(ang)*r, -19, 19);
+        this.items.push({ pos:{x,z}, rarity:0, name:'起步补给',
+          value:Math.round(rrnd(120,300)), kg:1, taken:false });
+      }
     }
   },
   drop(pos,value){
@@ -2243,8 +2608,12 @@ const BackPack = {
   get penalty(){ return Math.min(.15, Math.floor(Math.max(0,this.kg-this.SOFT_KG)/5)*.03); },
   get wadingPenalty(){ return this.penalty*2; },
   canTake(){ return this.items.length<this.SLOTS; },
-  take(item){ if(this.canTake()){ item.taken=true; this.items.push(item);
-    Telemetry.log('loot',{value:item.value,total:this.value}); } }
+  take(item){ if(this.canTake()){ item.taken=true;
+    // 打捞权（账房）：入包价值 ×1.2。存副本，不污染地图上物品的原价
+    const v = Math.round(item.value*opVal('valueMult',1));
+    this.items.push(Object.assign({}, item, {value:v}));
+    GhostRecorder.mark('loot');   // 幽灵竞速：记录拾取时刻与位置
+    Telemetry.log('loot',{value:v,total:this.value}); } }
 };
 
 // ---- 撤离系统 ----
@@ -2256,11 +2625,15 @@ const Extraction = {
     {id:'北路平台', pos:{x:-2,z:10}, elev:1.8, closeAt:450},
     {id:'高点·最终', pos:{x:17,z:12}, elev:4.0, closeAt:Infinity},
   ],
+  MIN_LOOT: 1,   // 撤离门槛：至少带 1 件战利品。空手站再久也不结算
   active(){ return this.points.filter(p=>
     (this.alwaysShow || TideMission.t<p.closeAt) && p.elev>TideMission.level+0.2); },
+  atPoint(player){ return this.active().find(p=>dist(player.pos,p.pos)<2.5) || null; },
+  blocked(){ return BackPack.items.length < this.MIN_LOOT; },
   update(dt,player){
-    const z=this.active().find(p=>dist(player.pos,p.pos)<2.5);
-    if(z && !player.dead){
+    const z=this.atPoint(player);
+    // ★ 空手不结算：堵死「开局站在出生点/撤离点上发呆 8 秒白嫖通关」
+    if(z && !player.dead && !this.blocked()){
       this.channelT+=dt;
       if(this.channelT>=this.CHANNEL) return 'EXTRACTED';
     } else this.channelT=Math.max(0,this.channelT-dt*2);
@@ -2279,6 +2652,8 @@ class Scavenger{
   }
   update(dt,player){
     if(this.state==='DEAD') return;
+    // ★ 开局静默期：完全休眠。不移动、不索敌、不开火，给玩家 15s 观察窗口
+    if(TideMission.graceActive()) return;
     const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
     // ★ 潮汐响应：预判30s后水位，提前撤往高地（命门，不可砍）
     if(this.state!=='COMBAT'){
@@ -2292,7 +2667,10 @@ class Scavenger{
       }
     }
     const d=dist(this.pos,player.pos);
-    if(!player.dead && d<26) this.state='COMBAT';
+    // ★ 新手（教学壳）交战距离收紧到 13m（< 出生点 15m 安全半径）——直击「15m 内无敌人却仍被跨图集火」的设计矛盾，
+    //   静默期结束不会瞬间 surround；挑战模式(novice=false)保持原 26m 全流程难度。
+    const ENGAGE = (typeof Mission!=='undefined' && Mission.novice) ? 13 : 26;
+    if(!player.dead && d<ENGAGE) this.state='COMBAT';
     else if(this.state==='COMBAT'){
       this.state='TO_HIGH';
       this.target=MapHeight.nearestHigh(this.pos,TideMission.level+0.8);
@@ -2307,10 +2685,11 @@ class Scavenger{
       this.moveTo(dt,this.target,this.speed*0.5);
     } else if(this.state==='TO_HIGH') this.moveTo(dt,this.target,this.speed);
     else if(this.state==='COMBAT'){
+      const C=Combat.scavenger;
       this.fireCd-=dt;
-      if(this.fireCd<=0){ this.fireCd=0.1;
-        const hitP=clamp(0.55-d*0.012,0.08,0.55);
-        if(Math.random()<hitP) player.damage(srnd(12,18),'scavenger');
+      if(this.fireCd<=0){ this.fireCd=C.cd;
+        const hitP=clamp(C.hit-d*C.falloff,C.min,C.hit);
+        if(Math.random()<hitP) player.damage(srnd(C.dmg[0],C.dmg[1]),'scavenger');
       }
     }
   }
@@ -2334,18 +2713,22 @@ class SalvageDrone{
     this.hp=60; this.state='PATROL'; this.fireCd=0; this.wT=0; this.called=false; this.tgt=null;
   }
   update(dt,player,scavs){
+    // ★ 开局静默期：不索敌、不开火、不召集拾荒者
+    if(TideMission.graceActive()) return;
     const high=TideMission.phase==='High';
-    const sp=5.0*(high?1.5:1), range=high?40:26;
+    // ★ 新手侦测距离收紧（13m / 满潮 18m），与拾荒者同步避免开局跨图集火；挑战模式保持 26/40
+    const sp=5.0*(high?1.5:1), range = (typeof Mission!=='undefined' && Mission.novice) ? (high?18:13) : (high?40:26);
     const d=dist(this.pos,player.pos);
     if(!player.dead && d<range){
       if(!this.called){ this.called=true;
         Telemetry.log('drone_call',{});
         scavs.forEach(s=>{ if(s.state!=='DEAD'&&dist(s.pos,this.pos)<30) s.state='COMBAT'; });
       }
+      const C=Combat.drone;
       this.fireCd-=dt;
-      if(this.fireCd<=0){ this.fireCd=0.15;
-        if(Math.random()<clamp(0.5-d*0.008,0.1,0.5))
-          player.damage(srnd(8,14)*(high?1.5:1),'drone');
+      if(this.fireCd<=0){ this.fireCd=C.cd;
+        if(Math.random()<clamp(C.hit-d*C.falloff,C.min,C.hit))
+          player.damage(srnd(C.dmg[0],C.dmg[1])*(high?C.highMult:1),'drone');
       }
       const dx=player.pos.x-this.pos.x,dz=player.pos.z-this.pos.z,L=Math.hypot(dx,dz);
       if(L>12){ this.pos.x+=dx/L*sp*dt; this.pos.z+=dz/L*sp*dt; }
@@ -2376,12 +2759,16 @@ class TideWarden{
       Telemetry.log('warden_down',{level:TideMission.level}); } }
   update(dt,player){
     if(this.state==='DEAD') return;
+    // ★ 开局静默期：守望者同样休眠，避免玩家主动推进时被秒
+    if(TideMission.graceActive()) return;
     const d=dist(this.pos,player.pos);
-    if(!player.dead && d<20){
+    // ★ 新手守望者侦测距离收紧到 13m（挑战模式 20m）。守望者居中(0,0)，本就离出生点 24m，新手不会在出生区被它点名
+    if(!player.dead && d < ((typeof Mission!=='undefined' && Mission.novice)?13:20)){
+      const C=Combat.warden;
       this.fireCd-=dt;
-      if(this.fireCd<=0){ this.fireCd=0.2;
-        if(Math.random()<clamp(0.6-d*0.02,0.15,0.6))
-          player.damage(srnd(20,28)+TideMission.level*3,'warden'); }
+      if(this.fireCd<=0){ this.fireCd=C.cd;
+        if(Math.random()<clamp(C.hit-d*C.falloff,C.min,C.hit))
+          player.damage(srnd(C.dmg[0],C.dmg[1])+TideMission.level*C.levelDmg,'warden'); }
       const dx=player.pos.x-this.pos.x,dz=player.pos.z-this.pos.z;
       const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
       if(d>8 && depth<2.0){ this.pos.x+=dx/d*this.speed*dt; this.pos.z+=dz/d*this.speed*dt; }
@@ -2390,23 +2777,38 @@ class TideWarden{
 }
 
 // ---- 玩家（单人模式）----
+// 出生点 = 闸门外侧滩涂。刻意与撤离点「船坞闸门」(-27,0) 相距 3.6m，
+// 落在其 2.5m 撤离判定圈之外，避免「出生即站在撤离点上」。
+const SPAWN_POS = {x:-24, z:2};
 const PlayerMission = {
-  pos:{x:-27,z:0}, hp:100, dead:false, armor:0,  maxArmor:0,
-  ammo:240, mag:30, lootT:0, lootTarget:null, kills:0, dmgTaken:0,
-  reset(){ this.pos={x:-27,z:0}; this.hp=100; this.dead=false;
+  pos:{x:SPAWN_POS.x, z:SPAWN_POS.z}, hp:100, dead:false, armor:0,  maxArmor:0,
+  ammo:240, mag:30, lootT:0, lootTarget:null, kills:0, dmgTaken:0, stillT:0,
+  reset(){ this.pos={x:SPAWN_POS.x, z:SPAWN_POS.z}; this.hp=100; this.dead=false;
     this.armor=0; this.maxArmor=0;
-    this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null; this.kills=0; this.dmgTaken=0; },
+    this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null;
+    this.kills=0; this.dmgTaken=0; this.stillT=0; },
   speed(){
-    const ws=WaterState.update(MapHeight.depthAt(this.pos.x,this.pos.z));
-    const over=MapHeight.depthAt(this.pos.x,this.pos.z)>1.2
-      ? BackPack.wadingPenalty : BackPack.penalty;
-    const opWade = (salvOp && salvOp.wading!=null) ? salvOp.wading : 1;
-    return 5.2*ws.move*(1-over*opWade);
+    const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
+    const ws=WaterState.update(depth);
+    const over = depth>1.2 ? BackPack.wadingPenalty : BackPack.penalty;
+    // 涉水天赋（wading < 1）：削减"水造成的减速幅度"，而不是削减背包惩罚。
+    // 干足（隼）= 减速砍半；水面张力（掠波）= 再砍一半。两者可叠加。
+    let move = ws.move;
+    const wade = opVal('wading', 1);
+    if(wade < 1 && move < 1) move = 1-(1-move)*wade;
+    if(opVal('swimOk', false) && move<1) move = 1-(1-move)*0.5;
+    // 绳忆（渠）+ 回潮（浚）：移速倍率
+    let mult = opVal('speedMult', 1);
+    if(this.hp/100 < opVal('lowHp', 0)) mult *= opVal('lowHpSpeed', 1);
+    return 5.2*move*(1-over)*mult;
   },
   damage(v,src){
     if(this.dead) return;
-    this.dmgTaken += v;
     let dmg=v;
+    // 锚定（堤）：站定不动够久后减伤 —— 把"站桩输出"变成一种可行打法
+    const anchorT=opVal('anchorT', 0);
+    if(anchorT>0 && this.stillT>=anchorT) dmg *= (1-opVal('anchorDR', 0));
+    this.dmgTaken += dmg;
     if(this.armor>0){ const a=Math.min(this.armor,dmg); this.armor-=a; dmg-=a; }
     this.hp-=dmg; AUD.hurt();
     if(this.hp<=0){ this.hp=0; this.dead=true; Mission.end(false,'killed'); }
@@ -2420,15 +2822,156 @@ const PlayerMission = {
   }
 };
 
+// ---- 幽灵竞速：轨迹录制 + 分享码编解码（P1-c.1）----
+// GhostRecorder：每局采样玩家轨迹与关键事件，作为分享码的数据源。
+// GhostCodec：把一份「潮痕」编码成 ~2KB 可分享字符串（含完整性校验），并能解码回放。
+// 两者皆为纯逻辑、不依赖渲染，可独立测试（test_ghost_headless.js）。
+// 纯 JS base64url（不依赖 btoa/atob/Buffer，浏览器与无头沙箱通用）
+function _b64urlEncode(str){
+  const tbl='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const bytes=[]; for(let i=0;i<str.length;i++) bytes.push(str.charCodeAt(i)&0xff);
+  let out='';
+  for(let i=0;i<bytes.length;i+=3){
+    const b0=bytes[i], b1=bytes[i+1], b2=bytes[i+2];
+    out+=tbl[b0>>2];
+    out+=tbl[((b0&3)<<4)|(b1!=null?b1>>4:0)];
+    out+=(b1!=null)?tbl[((b1&15)<<2)|(b2!=null?b2>>6:0)]:'=';
+    out+=(b2!=null)?tbl[b2&63]:'=';
+  }
+  return out.replace(/=+$/,'');
+}
+function _b64urlDecode(s){
+  const tbl='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const inv={}; for(let i=0;i<tbl.length;i++) inv[tbl[i]]=i;
+  s=s.replace(/=+$/,'');
+  const bytes=[];
+  for(let i=0;i<s.length;i+=4){
+    const c0=inv[s[i]], c1=inv[s[i+1]], c2=inv[s[i+2]], c3=inv[s[i+3]];
+    bytes.push((c0<<2)|(c1>>4));
+    if(s[i+2]!=null) bytes.push(((c1&15)<<4)|(c2>>2));
+    if(s[i+3]!=null) bytes.push(((c2&3)<<6)|c3);
+  }
+  let str=''; for(const b of bytes) str+=String.fromCharCode(b);
+  return str;
+}
+function _fnv1a(str){
+  let h=0x811c9dc5;
+  for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193); }
+  return h>>>0;
+}
+
+const GhostRecorder = {
+  interval:2.0, timer:0, samples:[], stealthBroken:false,
+  start(){ this.samples=[]; this.timer=0; this.stealthBroken=false; },
+  // 每帧调用：按固定间隔采样玩家位置（2s 一次，足够回放且体积极小）
+  record(dt, p){
+    if(typeof Mission==='undefined' || Mission.state!=='RUNNING') return;
+    this.timer+=dt;
+    if(this.timer>=this.interval){
+      this.timer-=this.interval;
+      this.samples.push({ t:TideMission.t, x:p.pos.x, z:p.pos.z });
+    }
+  },
+  // 关键事件标定点（在 TideMission.t 此刻记录，位置取自玩家）
+  mark(event){ this.samples.push({ t:TideMission.t, event, x:PlayerMission.pos.x, z:PlayerMission.pos.z }); },
+  // 破无痕：只在第一次开火时记一次（幽灵回放可显示「此处开枪」）
+  breakStealth(){ if(!this.stealthBroken){ this.stealthBroken=true; this.mark('fire'); } }
+};
+
+const GhostCodec = {
+  VERSION:1,
+  TQ:10,        // 时间量化：×10（分米级秒）
+  PQ:2,         // 位置量化：×2（0.5m 网格）
+  EV:{ loot:0, fire:1, kill:2, extract:3 },
+  encode(g){
+    const pos=[], ev=[];
+    for(const s of g.samples){
+      if(s.event) ev.push(Math.round(s.t*this.TQ), this.EV[s.event]||0,
+                          Math.round(clamp(s.x,-32,32)*this.PQ), Math.round(clamp(s.z,-32,32)*this.PQ));
+      else pos.push(Math.round(s.t*this.TQ), Math.round(clamp(s.x,-32,32)*this.PQ), Math.round(clamp(s.z,-32,32)*this.PQ));
+    }
+    const payload={ v:this.VERSION, s:g.seed>>>0, o:g.op, g:g.gun, n:g.novice?1:0,
+      val:g.value|0, kil:g.kills|0, t:Math.round(g.t*this.TQ), ext:g.extracted?1:0, pos, ev };
+    const json=JSON.stringify(payload);
+    const sum=(_fnv1a(json)&0xffff).toString(16).padStart(4,'0');
+    return _b64urlEncode(json)+'|'+sum;       // 校验和与数据分离，解码时先验再解析
+  },
+  decode(code){
+    if(typeof code!=='string' || !code.trim()) return null;
+    const i=code.lastIndexOf('|');
+    if(i<0) return null;
+    const json=_b64urlDecode(code.slice(0,i)), sum=code.slice(i+1);
+    if((_fnv1a(json)&0xffff).toString(16).padStart(4,'0')!==sum) return null;   // 完整性校验失败：损坏或被篡改
+    let p; try{ p=JSON.parse(json); }catch(e){ return null; }
+    if(!p || p.v!==this.VERSION || typeof p.s!=='number') return null;
+    const samples=[];
+    for(let i=0;i<p.pos.length;i+=3) samples.push({ t:p.pos[i]/this.TQ, x:p.pos[i+1]/this.PQ, z:p.pos[i+2]/this.PQ });
+    const inv={}; for(const k in this.EV) inv[this.EV[k]]=k;
+    for(let i=0;i<p.ev.length;i+=4) samples.push({ t:p.ev[i]/this.TQ, event:inv[p.ev[i+1]]||'mark', x:p.ev[i+2]/this.PQ, z:p.ev[i+3]/this.PQ });
+    samples.sort((a,b)=>a.t-b.t);
+    return { seed:p.s>>>0, op:p.o, gun:p.g, novice:!!p.n, value:p.val, kills:p.kil,
+      t:p.t/this.TQ, extracted:!!p.ext, samples };
+  }
+};
+
+// GhostPlayer：把一份「潮痕」的离散采样点按时间插值成连续轨迹。
+// 纯逻辑、不依赖 THREE，可在无头沙箱直接测（test_challenge_headless.js）；渲染层只调用 sampleAt。
+// 幽灵是纯视觉对象——不参与碰撞、索敌、拾取，见 FP.renderSalvage 的 ghost 分支。
+const GhostPlayer = {
+  samples:[], tEnd:0, loaded:false,
+  load(samples){
+    // 编码时轨迹与事件分流存储，解码后合并；这里统一排序才能让插值按时间单调推进
+    this.samples = (samples||[]).slice().sort((a,b)=>a.t-b.t);
+    this.tEnd = this.samples.length ? this.samples[this.samples.length-1].t : 0;
+    this.loaded = this.samples.length>0;
+    return this.loaded;
+  },
+  clear(){ this.samples=[]; this.tEnd=0; this.loaded=false; },
+  // 按时间线性插值。t 早于首样本→停在首样本；晚于末样本→停在末样本并标记 done（幽灵已撤离/阵亡，不再移动）
+  sampleAt(t){
+    if(!this.loaded) return null;
+    const s=this.samples;
+    if(t<=s[0].t) return { x:s[0].x, z:s[0].z, done:false };
+    if(t>=this.tEnd) return { x:s[s.length-1].x, z:s[s.length-1].z, done:true };
+    for(let i=0;i<s.length-1;i++){
+      const a=s[i], b=s[i+1];
+      if(t>=a.t && t<=b.t){
+        const k = (b.t>a.t) ? (t-a.t)/(b.t-a.t) : 0;
+        return { x:a.x+(b.x-a.x)*k, z:a.z+(b.z-a.z)*k, done:false };
+      }
+    }
+    return { x:s[s.length-1].x, z:s[s.length-1].z, done:true };
+  },
+  // t 之前最近一次关键事件（loot/fire/kill/extract），供 HUD 显示「对手在此拾取/撤离」
+  lastEvent(t){
+    let out=null;
+    for(const s of this.samples){ if(s.t>t) break; if(s.event) out=s.event; }
+    return out;
+  }
+};
+
+let LastGhost=null;   // 本局结束时填充，供 P1-c.2「生成潮痕」UI 读取
+
 // ---- 任务总控 ----
 const Mission = {
   state:'IDLE', result:null, entities:{scavs:[],drones:[],warden:null},
-  start(){
+  start(seed, challenge){
+    // 幽灵竞速前置：每局都记录一个种子。正常游玩随机生成（与之前 Math.random 行为一致），
+    // 挑战模式传入对方分享码里的种子 → 双方复现同一张地图，比赛才公平。
+    this.seed = (seed!=null) ? (seed>>>0) : ((Math.random()*4294967296)>>>0);
+    Rng.seed(this.seed);
+    this.challenge = !!challenge;
     // 新手引导：前两次进入撤离模式自动套用「简易模式」，避免上来就阵亡
     const isFirstRun = (typeof Meta!=='undefined' && Meta.data) ? Meta.data.runs < 2 : false;
-    this.novice = isFirstRun;
+    // 挑战模式（幽灵竞速）：锁定满编难度，移除教学壳——公平复现的前提，不允许新手档刷记录
+    this.novice = this.challenge ? false : isFirstRun;
+    GhostRecorder.start();   // 幽灵竞速：清空前局轨迹，开始记录本局
+    // 对称清空回放态：录制与回放是一对，都在「开局」这一刻归零。
+    // 放在 Mission.start 而非 startSalvage，是为了堵住任何绕过 UI 直接开局的调用路径残留幽灵。
+    // 挑战局的幽灵由 startSalvage 在本调用之后载入，顺序为「先清后载」。
+    GhostPlayer.clear();
     TideMission.PHASES = TideMission.BASE_PHASES.map(p=>({...p}));
-    if(isFirstRun){
+    if(this.novice){   // 新手/教学壳：水位放慢、撤离点高亮、开局赠甲；挑战模式强制 false → 满编
       // 水位上涨速度减半：三幕时长 ×1.5，硬上限放宽到 900s（15 分钟完整情绪曲线）
       TideMission.PHASES.forEach(p=>{ p.t0*=1.5; p.t1*=1.5; });
       TideMission.HARD_CAP = 900;
@@ -2437,22 +2980,59 @@ const Mission = {
     }
     MapHeight.init(); TideMission.start(); LootSystem.spawn();
     BackPack.items=[]; PlayerMission.reset(); Extraction.reset();
-    Extraction.alwaysShow = isFirstRun;   // 撤离点全程高亮，新手不会迷路
+    Extraction.alwaysShow = this.novice;   // 撤离点全程高亮，新手不会迷路（挑战模式关闭）
     WaterState.cur=0;
+    // ★ 出生点安全半径：任何敌人都不得生成在玩家出生点 SAFE_R 米内
+    const SAFE_R = 15;
+    const spawn = PlayerMission.pos;          // reset() 已把玩家放回出生点（SPAWN_POS）
+    // ★ 新手（教学壳）额外把「出生点旁最显眼的教学撤离点 船坞闸门」纳入安全半径：
+    //   保证新手最自然的出口不被敌人蹲守（否则仍会在 8s 撤离通道处被冷枪磨死）。
+    //   挑战模式(novice=false)不保护该点，保持公平复现。
+    const gate = Extraction.points.find(p=>p.id==='船坞闸门').pos;
+    const clear = this.novice
+      ? (p)=> dist(p,spawn)>=SAFE_R && dist(p,gate)>=SAFE_R
+      : (p)=> dist(p,spawn)>=SAFE_R;
+    // 随机安全点：反复采样，直到落在安全半径外
+    const safePoint = (maxElev)=>{
+      for(let k=0;k<80;k++){
+        const p = MapHeight.randomLowPoint(maxElev);
+        if(clear(p)) return p;
+      }
+      return farthestPoint(spawn);            // 兜底：取地图上离出生点最远的格点
+    };
     this.entities.scavs=[];
-    const scavCount = isFirstRun ? 6 : 12;   // 敌人减半
+    const scavCount = this.novice ? 6 : 12;   // 敌人减半（仅新手；挑战模式满编）
     for(let i=0;i<scavCount;i++)
-      this.entities.scavs.push(new Scavenger(MapHeight.randomLowPoint(1.0)));
-    this.entities.drones=[[-20,10],[20,-15],[0,18],[-15,-5]]
-      .map(p=>new SalvageDrone({x:p[0],z:p[1]}));
+      this.entities.scavs.push(new Scavenger(safePoint(1.0)));
+    // 固定点位先过滤掉危险点（距出生点 / 教学撤离点 15m 内都剔除），不足再补
+    const droneSpots=[[-20,10],[20,-15],[0,18],[-15,-5]]
+      .map(p=>({x:p[0],z:p[1]}))
+      .filter(p=>clear(p));
+    while(droneSpots.length<4) droneSpots.push(safePoint(99));
+    this.entities.drones = droneSpots.map(p=>new SalvageDrone(p));
     this.entities.warden=new TideWarden({x:0,z:0});
-    if(isFirstRun){ PlayerMission.armor=50; PlayerMission.maxArmor=50; }  // 开局赠 1 级护甲
-    this.state='RUNNING'; Telemetry.log('mission_start',{novice:isFirstRun});
+    if(this.novice){ PlayerMission.armor=50; PlayerMission.maxArmor=50; }  // 开局赠 1 级护甲（仅新手）
+    Rng.reset();   // 生成结束即复位：运行期 AI 回到 Math.random，手感不受影响
+    this.state='RUNNING'; Telemetry.log('mission_start',{novice:this.novice, seed:this.seed});
   },
+  onGraceEnd:null,
   update(dt){
     if(this.state!=='RUNNING') return;
+    const wasGrace = TideMission.graceActive();
     TideMission.tick(dt);
+    if(wasGrace && !TideMission.graceActive()){   // 静默期结束：给一次明确警示
+      Telemetry.log('grace_end',{t:TideMission.t});
+      // 苏醒不是瞬间开火：每个敌人有 0.6~1.6s 的随机反应延迟，
+      // 玩家能听见动静、看见敌人抬头，然后才有第一声枪响。
+      const wake = ()=> 0.6+Math.random()*1.0;
+      this.entities.scavs.forEach(s=>{ if(s.state!=='DEAD') s.fireCd=wake(); });
+      this.entities.drones.forEach(d=>{ if(d.state!=='DEAD') d.fireCd=wake(); });
+      if(this.entities.warden && this.entities.warden.state!=='DEAD')
+        this.entities.warden.fireCd=wake();
+      if(this.onGraceEnd) this.onGraceEnd();
+    }
     const p=PlayerMission;
+    GhostRecorder.record(dt, p);   // 幽灵竞速：每帧采样玩家轨迹
     this.entities.scavs.forEach(s=>s.update(dt,p));
     this.entities.drones.forEach(d=>{ if(d.state!=='DEAD') d.update(dt,p,this.entities.scavs); });
     this.entities.warden.update(dt,p);
@@ -2464,31 +3044,72 @@ const Mission = {
     this.state='ENDED';
     const ph = TideMission.PHASES.find(p=>TideMission.t>=p.t0 && TideMission.t<p.t1);
     const phaseName = ph ? ph.name : 'High';
+    if(extracted) GhostRecorder.mark('extract');   // 幽灵竞速：记录撤离时刻（供回放结尾）
     this.result={extracted,reason,value:BackPack.value,t:TideMission.t,
-      phase:phaseName, kills:PlayerMission.kills, damageTaken:PlayerMission.dmgTaken, hpLeft:PlayerMission.hp};
-    Meta.commit(extracted); Telemetry.log('mission_end',this.result);
+      phase:phaseName, kills:PlayerMission.kills, damageTaken:PlayerMission.dmgTaken, hpLeft:PlayerMission.hp,
+      seed:this.seed};   // 幽灵竞速：分享码需要本局种子以复现同一张地图
+    // 产出可分享幽灵（分享码数据源）：记录本局的种子/配置/轨迹，P1-c.2 的「生成潮痕」读取它
+    LastGhost = {
+      seed:this.seed, op:SalvageLoadout.op, gun:SalvageLoadout.gun,
+      novice:this.novice, value:BackPack.value, kills:PlayerMission.kills,
+      t:TideMission.t, extracted, samples:GhostRecorder.samples.slice()
+    };
+    // 解锁快照：结算前后各查一次，成就路径与次数路径都能被覆盖到
+    const before = OPS.filter(o=>ShellMeta.opUnlocked(o.id)).map(o=>o.id);
+    Meta.commit(extracted);            // commit 内部判定并写入成就
+    this.result.newOps = OPS.filter(o=>ShellMeta.opUnlocked(o.id))
+                            .map(o=>o.id).filter(id=>!before.includes(id));
+    this.result.nearMiss = nearMiss(this.result);
+    Telemetry.log('mission_end',this.result);
   }
 };
 
 // ---- 局外持久化（带 localStorage 保护，便于无头测试）----
 const Meta = {
   key:'tideline_meta_v2', data:null,
-  _def(){ return {credits:0,runs:0,extracted:0,bestHaul:0}; },
+  _def(){ return {credits:0,runs:0,extracted:0,bestHaul:0,totalHaul:0,achDone:{},fullExtracts:0,seenHowto:false}; },
   load(){ try{
     if(typeof localStorage==="undefined"){ this.data=this._def(); return; }
     this.data=JSON.parse(localStorage.getItem(this.key)||JSON.stringify(this._def()));
-  }catch(e){ this.data=this._def(); } },
+  }catch(e){ this.data=this._def(); }
+    // 老存档缺字段时补齐，避免 undefined 在判定里传播
+    const d=this.data, f=this._def();
+    for(const k in f) if(d[k]==null) d[k]=f[k];
+  },
+  save(){ try{ if(typeof localStorage!=="undefined" && this.data) localStorage.setItem(this.key, JSON.stringify(this.data)); }catch(e){} },
   commit(extracted){
     if(!this.data) this.data=this._def();
     const d=this.data; d.runs++;
-    if(extracted){ d.extracted++; d.credits+=BackPack.value; d.bestHaul=Math.max(d.bestHaul,BackPack.value); }
+    d.totalHaul = (d.totalHaul||0) + (extracted?BackPack.value:0);
+    if(extracted){ d.extracted++; d.credits+=BackPack.value; d.bestHaul=Math.max(d.bestHaul,BackPack.value);
+      // 满编局（非新手教学壳）成功撤离才计入 —— 主菜单「挑战」入口的解锁门槛。
+      // 新手档成绩不该解锁竞速：那是被削弱过的难度，没有可比性。
+      if(typeof Mission!=='undefined' && Mission.novice===false) d.fullExtracts=(d.fullExtracts||0)+1;
+    }
+    // 成就判定：此时 Mission.result 已写入、totalHaul 已更新
+    d.achDone = d.achDone||{};
+    const got = evalAchievements(Mission.result||{});
+    got.forEach(id=>{ d.achDone[id]=true; });
+    d.lastAch = got;
     try{ if(typeof localStorage!=="undefined") localStorage.setItem(this.key,JSON.stringify(d)); }catch(e){}
   }
 };
 
 /* ===================== SALVAGE 整合：玩家控制 + 渲染 ===================== */
 const SALVAGE_WP = { name:"打捞步枪", dmg:24, rpm:600, cd:60/600, mag:30, range:70 };
+// §3.1 深水降级：游泳态（水深 > 2.0m）主武器收起、仅手枪可用 —— 是"降级"不是"缴械"。
+// 掠波（水面张力）免疫此降级，这是她在满潮期唯一的独占价值。
+const SIDEARM = {name:'备用手枪', cls:'HG', dmg:18, rpm:333, cd:60/333, mag:12, range:40};
+const SWIM_DEPTH = 2.0;
 let salvMuzzle=0, salvCd=0, salvReloadT=0, salvWarn="", salvWarnT=0, stepAccum=0;
+let salvSideMag = SIDEARM.mag;
+// 当前实际可用的武器（深水自动切手枪）
+function activeGun(){
+  const d = MapHeight.depthAt(PlayerMission.pos.x, PlayerMission.pos.z);
+  return (d > SWIM_DEPTH && !opVal('swimOk', false)) ? SIDEARM : salvGun;
+}
+const usingSidearm = ()=> activeGun()===SIDEARM;
+const curMag = ()=> usingSidearm() ? salvSideMag : PlayerMission.mag;
 
 function salvageResetView(){ playerYaw=0; playerPitch=0; }
 
@@ -2506,6 +3127,7 @@ function showRuleReminder(){
     `<div class="rrow low">${low} 低潮：搜刮物资</div>`+
     `<div class="rrow rising">${ris} 涨潮：水位上涨，通路消失</div>`+
     `<div class="rrow high">${hig} 满潮：冲向撤离点</div>`+
+    `<div class="rnote gracetip">开局 ${Math.round((typeof TideMission!=='undefined'?TideMission.GRACE_SEC:15))} 秒敌方静止 —— 先观察地形，再决定路线</div>`+
     `<div class="rnote">记住：没撤出，一切沉底</div>`;
   el.classList.add('on');
   clearTimeout(el._t1); clearTimeout(el._t2);
@@ -2521,27 +3143,37 @@ function startSalvage(cfg){
   salvOp = SALVAGE_OPS[SalvageLoadout.op] || SALVAGE_OPS.kestrel;
   AUD.resume();
   Meta.load();
-  Mission.start();
+  // 挑战局：传入对方种子以复现同一张地图；challenge=true 强制满编、取消教学壳
+  Mission.start((cfg && cfg.seed!=null) ? cfg.seed : null, (cfg && cfg.challenge) || false);
+  // 幽灵轨迹：挑战局载入对方潮痕；普通局清空，避免上一局的幽灵残留到新局里
+  if(cfg && cfg.challenge && cfg.ghost) GhostPlayer.load(cfg.ghost.samples); else GhostPlayer.clear();
   showRuleReminder();
   salvageResetView();
   if(FP.ok){ FP.buildSalvage(); FP.setSceneMode("salvage"); }
   salvMuzzle=0; salvCd=0; salvReloadT=0; salvWarn=""; salvWarnT=0; stepAccum=0;
+  salvSideMag=SIDEARM.mag;
   TideMission.onWarning = (name)=>{ salvWarn="⚠ 潮汐预警："+name+" 段即将到来"; salvWarnT=4; AUD.warn(); };
+  Mission.onGraceEnd = ()=>{ salvWarn="⚠ 静默期结束：敌方开始行动"; salvWarnT=3.5; AUD.warn(); };
   TideMission.onPhaseChange = (name)=>{ salvWarn="潮汐进入 "+name+" 段"; salvWarnT=3; };
   MenuShell.hideAll();
   screen="play"; running=true; last=performance.now();
 }
 
 function reloadSalvage(){
-  const P=PlayerMission;
-  if(P.mag>=salvGun.mag || P.ammo<=0 || salvReloadT>0) return;
-  salvReloadT=1.6;
+  const P=PlayerMission, side=usingSidearm();
+  const mag = side ? salvSideMag : P.mag;
+  const cap = side ? SIDEARM.mag  : salvGun.mag;
+  if(mag>=cap || P.ammo<=0 || salvReloadT>0) return;
+  salvReloadT=1.6*opVal('reloadMult',1);   // 绳忆（渠）：换弹耗时 ×0.6
 }
 
 function fireSalvage(){
-  const P=PlayerMission; P.mag--; salvMuzzle=0.06; AUD.gun('AR');
+  const P=PlayerMission, side=usingSidearm(), gun=side?SIDEARM:salvGun;
+  if(side){ if(salvSideMag<=0) return; salvSideMag--; } else { if(P.mag<=0) return; P.mag--; }
+  salvMuzzle=0.06; AUD.gun(side?'HG':'AR');
+  GhostRecorder.breakStealth();   // 幽灵竞速：首次开火即标记破无痕
   const fx=Math.sin(playerYaw), fz=-Math.cos(playerYaw);
-  const range=salvGun.range, thr=Math.cos(0.14);
+  const range=gun.range, thr=Math.cos(0.14);
   const ents=[];
   for(const s of Mission.entities.scavs) if(s.state!=='DEAD') ents.push(s);
   for(const d of Mission.entities.drones) if(d.state!=='DEAD') ents.push(d);
@@ -2553,8 +3185,11 @@ function fireSalvage(){
     const dot=(dx*fx+dz*fz)/(d||1);
     if(dot>=thr && d<bestD){ best=e; bestD=d; }
   }
-  if(best){ best.damage(salvGun.dmg); AUD.hitmark();
-    if(best.state==='DEAD'){ AUD.kill(); PlayerMission.kills++; } }
+  if(best){
+    let dmg = gun.dmg;
+    if(gun.cls==='SG') dmg = Math.round(dmg*opVal('sgMult',1));   // 超压（沸釜）
+    best.damage(dmg); AUD.hitmark();
+    if(best.state==='DEAD'){ AUD.kill(); PlayerMission.kills++; GhostRecorder.mark('kill'); } }
 }
 
 function updateSalvage(dt){
@@ -2567,7 +3202,8 @@ function updateSalvage(dt){
   if(keys.has("KeyD")){mvx+=rx;mvz+=rz;}
   if(keys.has("KeyA")){mvx-=rx;mvz-=rz;}
   const L=Math.hypot(mvx,mvz);
-  if(L>0){ const sp=P.speed(); P.pos.x+=mvx/L*sp*dt; P.pos.z+=mvz/L*sp*dt; }
+  if(L>0){ const sp=P.speed(); P.pos.x+=mvx/L*sp*dt; P.pos.z+=mvz/L*sp*dt; P.stillT=0; }
+  else P.stillT+=dt;      // 静止时长，供「锚定」减伤判定
   P.pos.x=Math.max(-29.5,Math.min(29.5,P.pos.x));
   P.pos.z=Math.max(-19.5,Math.min(19.5,P.pos.z));
   // 涉水脚步音 + 环境水声
@@ -2577,9 +3213,11 @@ function updateSalvage(dt){
   // 换弹 / 开火
   if(keys.has("KeyR")) reloadSalvage();
   if(salvReloadT>0){ salvReloadT-=dt; if(salvReloadT<=0){
-    const need=salvGun.mag-P.mag, take=Math.min(need,P.ammo);
-    P.mag+=take; P.ammo-=take; } }
-  if(mouseDown && P.mag>0 && salvCd<=0){ fireSalvage(); salvCd=salvGun.cd; }
+    if(usingSidearm()){ const need=SIDEARM.mag-salvSideMag, take=Math.min(need,P.ammo);
+      salvSideMag+=take; P.ammo-=take; }
+    else { const need=salvGun.mag-P.mag, take=Math.min(need,P.ammo);
+      P.mag+=take; P.ammo-=take; } } }
+  if(mouseDown && curMag()>0 && salvCd<=0){ fireSalvage(); salvCd=activeGun().cd; }
   if(salvCd>0) salvCd-=dt;
   if(salvMuzzle>0) salvMuzzle-=dt;
   // 拾取（按住 F）
@@ -2666,11 +3304,76 @@ function drawSalvageHUD(){
   ctx.fillText("用时 "+mins+":"+String(secs).padStart(2,'0')+"   撤离倒计时 "+rm+":"+String(rs).padStart(2,'0'),16,40);
   ctx.textAlign="right";
   ctx.fillText("战利品 ⌾"+BackPack.value+"  重量 "+BackPack.kg.toFixed(1)+"kg",W-16,22);
-  ctx.fillText("生命 "+Math.max(0,Math.round(P.hp))+"   弹药 "+P.mag+"/"+P.ammo,W-16,40);
+  ctx.fillText("生命 "+Math.max(0,Math.round(P.hp))+"   "+
+    (usingSidearm()?"手枪":activeGun().name)+" "+curMag()+"/"+P.ammo,W-16,40);
   ctx.textAlign="left"; ctx.font="12px sans-serif";
   const active=Extraction.active();
   ctx.fillStyle=active.length?"#7dffb0":"#ff9b7d";
   ctx.fillText(active.length?("可撤离："+active.map(p=>p.id).join(" / ")):"⚠ 暂无可用撤离点",16,68);
+  if(TideMission.graceActive()){   // 静默期倒计时：明确告诉玩家"现在是安全的"
+    ctx.fillStyle="#8fd3ff"; ctx.font="bold 13px sans-serif";
+    ctx.fillText("◈ 静默期 "+Math.ceil(TideMission.graceLeft())+"s —— 敌方尚未察觉，先观察地形 / 规划搜刮路线",16,88);
+  }
+  // ★ 成就进行中：把隐形目标变成可见的赌注。
+  // 玩家看到「无痕 · 零击杀 —— 可解锁掠波」，再撞见拾荒者时才会犹豫：
+  // 开枪，还是绕过去？那个犹豫的瞬间就是这局教学的成果。
+  const live=liveAchievements().slice(0,3);
+  if(live.length){
+    ctx.textAlign="right"; ctx.font="bold 12px sans-serif";
+    let ly=64;
+    for(const a of live){
+      const o=OPS.find(x=>x.id===a.id);
+      ctx.fillStyle="#ffd166";
+      ctx.fillText("◈ "+a.tag+" —— 可解锁「"+(o?o.name:a.id)+"」",W-16,ly);
+      ly+=17;
+    }
+    ctx.textAlign="left";
+  }
+  // 站在撤离点上：给足"能不能走、还要等多久"的反馈
+  const at=Extraction.atPoint(P);
+  if(at){
+    ctx.textAlign="center"; ctx.font="bold 15px sans-serif";
+    if(Extraction.blocked()){
+      ctx.fillStyle="#ffd166";
+      ctx.fillText("⚠ 空手撤离无效 —— 先按住 [F] 搜刮至少 1 件战利品",W/2,H-62);
+    } else {
+      const pct=Math.min(1,Extraction.channelT/Extraction.CHANNEL);
+      ctx.fillStyle="#7dffb0";
+      ctx.fillText("撤离中 · "+at.id+"   "+Math.round(pct*100)+"%",W/2,H-62);
+      ctx.fillStyle="rgba(255,255,255,.22)"; ctx.fillRect(W/2-140,H-54,280,7);
+      ctx.fillStyle="#7dffb0";               ctx.fillRect(W/2-140,H-54,280*pct,7);
+    }
+    ctx.textAlign="left";
+  }
+  // 潮感（渔火）：底部方位雷达，把 15m 内的敌人标成红点，越近越亮
+  const senseR = opVal('senseR', 0);
+  if(senseR>0){
+    const barW=260, barX=W/2-barW/2, barY=H-40;
+    ctx.fillStyle="rgba(140,220,255,.14)"; ctx.fillRect(barX,barY,barW,10);
+    ctx.fillStyle="rgba(140,220,255,.45)"; ctx.fillRect(W/2-1,barY-3,2,16);
+    const fx=Math.sin(playerYaw), fz=-Math.cos(playerYaw);
+    const rx=Math.cos(playerYaw), rz=Math.sin(playerYaw);
+    const list=[];
+    for(const s of Mission.entities.scavs)  if(s.state!=='DEAD') list.push(s);
+    for(const d of Mission.entities.drones) if(d.state!=='DEAD') list.push(d);
+    const w=Mission.entities.warden; if(w && w.state!=='DEAD') list.push(w);
+    for(const e of list){
+      const dx=e.pos.x-P.pos.x, dz=e.pos.z-P.pos.z, d=Math.hypot(dx,dz);
+      if(d>senseR) continue;
+      const t=clamp(Math.atan2(dx*rx+dz*rz, dx*fx+dz*fz)/(Math.PI/2),-1,1);
+      const a=1-d/senseR;
+      ctx.fillStyle="rgba(255,120,90,"+(0.30+0.60*a).toFixed(2)+")";
+      ctx.fillRect(barX+barW/2+t*barW/2-2, barY+1, 4, 8);
+    }
+    ctx.fillStyle="rgba(140,220,255,.7)"; ctx.font="12px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("潮感 "+senseR+"m",W/2,barY-6);
+    ctx.textAlign="left";
+  }
+  if(usingSidearm()){   // §3.1 深水降级提示：让玩家明白不是缴械，是换枪
+    ctx.fillStyle="#ffd166"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("水深没顶 · 主武器收起，仅手枪可用",W/2,H-112);
+    ctx.textAlign="left";
+  }
   const near=LootSystem.nearestLoot(P.pos,2.2);
   if(near){ ctx.fillStyle="#ffe08a"; ctx.font="15px sans-serif"; ctx.textAlign="center";
     ctx.fillText("按住 [F] 拾取 "+near.name+"（⌾"+near.value+"）",W/2,H-90); }
@@ -2718,6 +3421,15 @@ FP.buildSalvage = function(){
   this.wardenMesh=new THREE.Mesh(new THREE.BoxGeometry(1.6,3,1.6),
     new THREE.MeshLambertMaterial({color:0xff3b3b,emissive:0x440000}));
   this.wardenMesh.visible=false; grp.add(this.wardenMesh);
+  // 幽灵（潮痕）：半透明轮廓 + 脚下光环。纯视觉对象 —— 不参与碰撞、索敌、拾取，也不进入任何实体列表
+  this.ghostMesh=new THREE.Group();
+  { const body=new THREE.Mesh(new THREE.BoxGeometry(0.6,1.2,0.36),
+      new THREE.MeshBasicMaterial({color:0x7fe3ff,transparent:true,opacity:0.34}));
+    body.position.y=0.6; this.ghostMesh.add(body);
+    const halo=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.06,14),
+      new THREE.MeshBasicMaterial({color:0x7fe3ff,transparent:true,opacity:0.5}));
+    halo.position.y=0.03; this.ghostMesh.add(halo); }
+  this.ghostMesh.visible=false; grp.add(this.ghostMesh);
   this.extrPool=Extraction.points.map(p=>{
     const m=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,4,12),
       new THREE.MeshBasicMaterial({color:0x50e696,transparent:true,opacity:0.8}));
@@ -2757,6 +3469,20 @@ FP.renderSalvage = function(t){
   if(this.gun){ this.gun.position.z=-0.5+(salvMuzzle>0?salvMuzzle*0.06:0);
     this.gun.position.y=-0.20+(salvMuzzle>0?salvMuzzle*0.02:0); }
   if(this.muzzleLight) this.muzzleLight.intensity=salvMuzzle>0?7:0;
+  // 幽灵（潮痕）：严格按潮汐时钟 TideMission.t 取样 —— 与录制时的时间轴对齐是竞速公平的前提。
+  // 纯视觉：不参与碰撞、索敌、拾取。对手已撤离（done）后幽灵消失，因为他那时已经不在场上了。
+  if(this.ghostMesh){
+    const gs=(typeof GhostPlayer!=='undefined') ? GhostPlayer.sampleAt(TideMission.t) : null;
+    if(gs && !gs.done){
+      const gh=MapHeight.sample(gs.x,gs.z);
+      this.ghostMesh.visible=true;
+      this.ghostMesh.position.set(gs.x, Math.max(gh,TideMission.level), gs.z);
+      // 朝向：取稍后时刻的位置差推算前进方向；静止时沿用上一次朝向
+      const ahead=(typeof GhostPlayer!=='undefined') ? GhostPlayer.sampleAt(TideMission.t+0.35) : null;
+      if(ahead){ const dx=ahead.x-gs.x, dz=ahead.z-gs.z;
+        if(dx*dx+dz*dz>0.0004) this.ghostMesh.rotation.y=Math.atan2(dx,dz); }
+    } else this.ghostMesh.visible=false;
+  }
   this.renderer.render(this.scene,this.camera);
 };
 /* ==========================================================================

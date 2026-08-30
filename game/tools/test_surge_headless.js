@@ -7,7 +7,9 @@
 
 const fs = require("fs"), path = require("path"), vm = require("vm");
 const HTML = path.join(__dirname, "..", "legacy", "index_full_2026-08-29_pre_restructure.html");
-const SRC = fs.readFileSync(HTML, "utf8").match(/<script>([\s\S]*?)<\/script>/)[1];
+const SRC = (function(){ // 第一个内联 <script> 是 three.js 库，主游戏逻辑在最后一个块
+  const _b = fs.readFileSync(HTML, "utf8").match(/<script>([\s\S]*?)<\/script>/g);
+  return _b[_b.length-1].replace(/^<script>/,"").replace(/<\/script>$/,""); })();
 
 /* ---------- 最小 DOM 桩 ---------- */
 function fakeCtx() {
