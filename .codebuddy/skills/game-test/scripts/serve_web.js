@@ -30,7 +30,11 @@ http.createServer((q, s) => {
   const fp = path.join(web, u);
   fs.readFile(fp, (e, d) => {
     if (e) { s.writeHead(404); s.end("404"); return; }
-    s.writeHead(200, { "Content-Type": ct[path.extname(fp)] || "application/octet-stream" });
+    // no-store：改完代码刷新即生效，浏览器绝不使用旧缓存（否则"改了没变化"会误判成没修好）
+    s.writeHead(200, {
+      "Content-Type": (ct[path.extname(fp)] || "application/octet-stream") + (path.extname(fp) === ".html" ? "; charset=utf-8" : ""),
+      "Cache-Control": "no-store"
+    });
     s.end(d);
   });
 }).listen(port, () => console.log("TIDELINE web 已启动: http://localhost:" + port + "/  (根: " + web + ")"));

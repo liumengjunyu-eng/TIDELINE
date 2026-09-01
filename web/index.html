@@ -4428,18 +4428,19 @@ FP.renderSalvage = function(t){
     this.camera.lookAt(P.pos.x, eye, P.pos.z);
   } else if(cm==='follow'){
     // v2.2：相机跟随"移动方向"而非"鼠标瞄准朝向"——否则鼠标一动，相机绕角色抡圈（世界打转）。
-    // 角色本体仍按光标瞄准旋转（双摇杆式 2.5D 手感），镜头只在人物移动时平滑转向。
+    // v2.3：切入跟随时强制与战术俯视同向对齐（正北）——切视角零跳变零打转；仅当人物移动时镜头平滑转向。
+    const camSwitched=(this._lastCam!==cm); this._lastCam=cm;
     const dt=Math.max(0.001, Math.min(0.1, t-(this._lastT||t))); this._lastT=t;
-    const mdx=P.pos.x-(this._lastPX==null?P.pos.x:this._lastPX);
-    const mdz=P.pos.z-(this._lastPZ==null?P.pos.z:this._lastPZ);
+    if(camSwitched || this._camYaw==null){ this._camYaw=0; this._lastPX=P.pos.x; this._lastPZ=P.pos.z; }
+    const mdx=P.pos.x-this._lastPX, mdz=P.pos.z-this._lastPZ;
     this._lastPX=P.pos.x; this._lastPZ=P.pos.z;
     if(mdx*mdx+mdz*mdz>1e-6){
       const target=Math.atan2(mdx,-mdz);                     // 与 playerYaw 同约定：forward=(sin,-cos)
-      const cur=(this._camYaw==null)?target:this._camYaw;
+      const cur=this._camYaw;
       let d=target-cur; d=Math.atan2(Math.sin(d),Math.cos(d));
       this._camYaw=cur+d*Math.min(1,dt*5);
     }
-    const cy=(this._camYaw==null)?playerYaw:this._camYaw, D=6.5, UP=3.2;
+    const cy=this._camYaw, D=6.5, UP=3.2;
     this.camera.position.set(P.pos.x-Math.sin(cy)*D, eye+UP, P.pos.z+Math.cos(cy)*D);
     this.camera.lookAt(P.pos.x, eye+0.9, P.pos.z);
   } else if(cm==='orbit'){
