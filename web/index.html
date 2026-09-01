@@ -1667,13 +1667,13 @@ const FP = {
       renderer = this.renderer;
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color(0x0a141e);
-      this.scene.fog = new THREE.Fog(0x0e1a26, 34, 110);
+      this.scene.fog = new THREE.Fog(0x0e1a26, 45, 160);   // v2：放宽雾距，高饱和点缀色不再被雾吞掉
       this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 500);
       camera3d = this.camera;
       this.scene.add(this.camera);
-      const hemi = new THREE.HemisphereLight(0xa8c2d6, 0x14202a, 0.95);
+      const hemi = new THREE.HemisphereLight(0xa8c2d6, 0x14202a, 1.05);
       this.scene.add(hemi);
-      const dir = new THREE.DirectionalLight(0xfff1d6, 0.85);
+      const dir = new THREE.DirectionalLight(0xfff1d6, 0.92);
       dir.position.set(26, 48, 14);
       this.scene.add(dir);
       this.buildGround();
@@ -2660,6 +2660,7 @@ const Combat = {
      scav / drone / droneSpots / warden   敌人配置
      lootRange     普通战利品采样范围（贴近边界但不越界）
      lootWide      低价值战利品的更宽采样范围
+     buildings[]   类型化建筑（纯视觉，不参与碰撞/寻路）：{x,z,w,h,type}
      sluice        泄洪机制配置；null = 该图没有泄洪
      unlock        {runs, hint, ach} 或 null（初始解锁）
    ========================================================================== */
@@ -2690,6 +2691,14 @@ const MAPS = {
     warden:{x:0,z:0},
     lootRange:{x:[-26,24], z:[-18,16]},
     lootWide :{x:[-27,27], z:[-19,19]},
+    // 视觉可读性 v2：类型化建筑（纯视觉）。选点避开撤离点 2.5m 判定圈与出生点
+    buildings:[
+      {x: 22, z: 17, w: 6, h: 5,   type:'warehouse'},
+      {x: 12, z:-12, w: 4, h: 4,   type:'machine'},
+      {x:-16, z:  4, w: 7, h: 5,   type:'dock'},
+      {x: -4, z: 18, w: 2, h: 2,   type:'tower'},
+      {x:-10, z:-12, w: 4, h: 3.5, type:'house'},
+    ],
     sluice:null,
     unlock:null,
   },
@@ -2745,6 +2754,14 @@ const MAPS = {
     warden:{x:0,z:-5},
     lootRange:{x:[-27,27], z:[-18,18]},
     lootWide :{x:[-28,28], z:[-19,19]},
+    // 视觉可读性 v2：类型化建筑（纯视觉）。避开 4 处楼梯、2 处货梯与撤离点判定圈
+    buildings:[
+      {x: 13, z:  5, w: 5, h: 4,   type:'dock'},      // 缆车站台旁检修车间
+      {x:-20, z:-12, w: 6, h: 5,   type:'warehouse'}, // 下层主街货栈
+      {x: 18, z: 14, w: 4, h: 3.5, type:'house'},     // 下层后街民居
+      {x: 10, z: -5, w: 4, h: 4,   type:'machine'},   // 北台地泵房
+      {x:  0, z:-17, w: 2, h: 2,   type:'tower'},     // 老街中庭哨塔
+    ],
     // 泄洪：设定集原话「上层水库开闸，水幕自上而下倾泻，覆盖 2 处楼梯」。
     // 时刻表写死在配置里（红线 1：潮汐永远可预测，不确定性来自敌人与贪心，不来自机制）；
     // 「哪 2 处楼梯」由本局种子决定（见 Sluice.reset），同种子必复现，幽灵竞速才公平。
@@ -4111,7 +4128,14 @@ function buildHumanoid(look){
       const a=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.34,0.1), mSub);
       a.position.set(-0.22,ty+0.06,B.th/2+0.03); g.add(a);
       const b=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.24,0.1), mAcc);
-      b.position.set(0.2,ty-0.04,B.th/2+0.03); g.add(b); break; }
+      b.position.set(0.2,ty-0.04,B.th/2+0.03); g.add(b);
+      const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.9,10,1,true),   // v2：头灯暖橙光锥（09 §2）
+        new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:0.22,side:THREE.DoubleSide}));
+      cone.rotation.x=Math.PI/2; cone.position.set(0,hy-0.02,headR+0.5); g.add(cone);
+      const glow=new THREE.Mesh(new THREE.SphereGeometry(0.5,10,8),          // v2：战斗状态红光呼吸
+        new THREE.MeshBasicMaterial({color:0xff5347,transparent:true,opacity:0.0,depthWrite:false}));
+      glow.position.y=ty+B.torsoH/2; g.add(glow);
+      g.userData.glow=glow; break; }
     case "scanner":{ const s=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.1,12), mSub);
       s.position.set(0,ty+B.torsoH/2+0.14,0); g.add(s); break; }
   }
@@ -4128,6 +4152,11 @@ function buildDrone(look){
   const ring=new THREE.Mesh(new THREE.TorusGeometry(0.5,0.05,6,16), mSub); ring.rotation.x=Math.PI/2; g.add(ring);
   const gun=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.12,0.46), mSub); gun.position.set(0,-0.16,0.22); g.add(gun);
   const eye=new THREE.Mesh(new THREE.SphereGeometry(0.13,10,8), mAcc); eye.position.set(0,0.02,0.34); g.add(eye);
+  const rotor=new THREE.Group();                               // v2：顶部旋翼十字（renderSalvage 驱动自转）
+  const b1=new THREE.Mesh(new THREE.BoxGeometry(1.05,0.03,0.09), mSub); rotor.add(b1);
+  const b2=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.03,1.05), mSub); rotor.add(b2);
+  rotor.position.y=0.22; g.add(rotor);
+  g.userData.rotor=rotor;
   return g;
 }
 // 战利品标记：光柱负责远距离发现，菱形负责近距离辨认，光环负责贴地定位。
@@ -4178,6 +4207,50 @@ function setSpriteText(sp,text,color){
   c.fillText(text, cv.width/2, cv.height/2+1);
   ud.tex.needsUpdate=true;
 }
+/* ---------- 类型化建筑（视觉可读性 v2）----------
+   SALVAGE 场景此前完全没有建筑 —— 玩家"进游戏不知道这是什么屋子"的根因。
+   低多边形程序化拼装：墙体 + 屋顶(平顶/人字顶) + 发光门框 + 深色窗带 + 屋顶标识 + 名称牌。
+   纯视觉：不参与碰撞/寻路/索敌（选点时已避开撤离点判定圈、出生点、楼梯与货梯）。 */
+const BUILDING_TYPES = {
+  warehouse:{name:'仓库',     wall:0x8c6d4a, roof:0x39414a, acc:0xffcf5f, roofStyle:'gable', wallH:3.2},
+  dock     :{name:'船坞车间', wall:0x4a5a66, roof:0x2a3138, acc:0x78d2ff, roofStyle:'flat',  wallH:2.8},
+  house    :{name:'值班房',   wall:0x6b7480, roof:0x8c3b2a, acc:0xcfd6dd, roofStyle:'gable', wallH:2.4},
+  machine  :{name:'泵房',     wall:0x39414a, roof:0x2a3138, acc:0xff7a3c, roofStyle:'flat',  wallH:2.6},
+  tower    :{name:'哨塔',     wall:0x2a3138, roof:0x39414a, acc:0xff5347, roofStyle:'flat',  wallH:6.0},
+};
+function buildBuilding(b){
+  const T=BUILDING_TYPES[b.type]||BUILDING_TYPES.warehouse;
+  const g=new THREE.Group();
+  const mWall=new THREE.MeshLambertMaterial({color:T.wall});
+  const mRoof=new THREE.MeshLambertMaterial({color:T.roof});
+  const mAcc =new THREE.MeshLambertMaterial({color:T.acc, emissive:T.acc, emissiveIntensity:0.55});
+  const mWin =new THREE.MeshLambertMaterial({color:0x121a20});
+  const H=T.wallH;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(b.w,H,b.h), mWall);
+  body.position.y=H/2; g.add(body);
+  if(T.roofStyle==='gable'){                                 // 人字顶：两块斜板对搭
+    const rl=Math.sqrt(b.w*b.w/4+0.81), ang=Math.atan2(0.9,b.w/2);
+    for(const s of [-1,1]){
+      const r=new THREE.Mesh(new THREE.BoxGeometry(rl,0.12,b.h+0.3), mRoof);
+      r.position.set(s*b.w/4, H+0.42, 0); r.rotation.z=-s*ang; g.add(r);
+    }
+  } else {                                                   // 平顶：檐口板 + 屋顶标识块
+    const cap=new THREE.Mesh(new THREE.BoxGeometry(b.w+0.4,0.18,b.h+0.4), mRoof);
+    cap.position.y=H+0.09; g.add(cap);
+    const mark=new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.4,b.w*0.3),0.22,0.5), mAcc);
+    mark.position.set(0,H+0.28,b.h*0.18); g.add(mark);
+  }
+  const door=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.9,0.16), mAcc);   // 发光门框：入口朝 +Z
+  door.position.set(0,0.95,b.h/2+0.02); g.add(door);
+  const winY=Math.min(H-0.45, 2.0);                          // 深色窗带：背面与侧面各一条
+  const win1=new THREE.Mesh(new THREE.BoxGeometry(b.w*0.72,0.5,0.06), mWin);
+  win1.position.set(0,winY,-b.h/2-0.03); g.add(win1);
+  const win2=new THREE.Mesh(new THREE.BoxGeometry(b.h*0.72,0.5,0.06), mWin);
+  win2.position.set(b.w/2+0.03,winY,0); win2.rotation.y=Math.PI/2; g.add(win2);
+  const sp=makeTextSprite();                                 // 名称牌：一眼知道"这是什么屋子"
+  if(sp){ sp.position.set(0,H+1.6,0); setSpriteText(sp,T.name,'#ffd9a0'); g.add(sp); }
+  return g;
+}
 FP.buildSalvage = function(){
   if(this.salvGroup){ this.scene.remove(this.salvGroup); this.salvGroup=null; }
   const grp=new THREE.Group(); this.salvGroup=grp; this.scene.add(grp);
@@ -4219,7 +4292,11 @@ FP.buildSalvage = function(){
   this.extrPool=Extraction.points.map(p=>{
     const m=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,4,12),
       new THREE.MeshBasicMaterial({color:0x50e696,transparent:true,opacity:0.8}));
-    m.position.set(p.pos.x, p.elev+2, p.pos.z); grp.add(m); return m;
+    m.position.set(p.pos.x, p.elev+2, p.pos.z); grp.add(m);
+    const halo=new THREE.Mesh(new THREE.RingGeometry(1.4,2.0,20),   // v2：贴地定位环，远处也看得出"这是撤离点"
+      new THREE.MeshBasicMaterial({color:0x50e696,transparent:true,opacity:0.4,side:THREE.DoubleSide}));
+    halo.rotation.x=-Math.PI/2; halo.position.set(p.pos.x, p.elev+0.12, p.pos.z); grp.add(halo);
+    m.userData.halo=halo; return m;
   });
   // 撤离点世界内名称标签：HUD 写着"可撤离：船坞闸门"，但玩家不知道哪根柱子是它 —— 这里把名字挂上去
   this.extrLabels=Extraction.points.map(p=>{
@@ -4227,6 +4304,18 @@ FP.buildSalvage = function(){
     if(sp){ sp.position.set(p.pos.x, p.elev+5.2, p.pos.z); grp.add(sp); }
     return sp;
   });
+  // v2：类型化建筑（视觉可读性核心）。此前 SALVAGE 场景没有任何建筑，
+  // 玩家"进游戏不知道这是什么屋子"——现在按地图配置程序化建造并挂名称牌。
+  this.buildingMeshes=[];
+  const bl=curMap().buildings||[];
+  for(const b of bl){
+    const bm=buildBuilding(b);
+    bm.position.set(b.x, MapHeight.sample(b.x,b.z)-0.3, b.z);   // 下沉 0.3 嵌进地形，斜坡上不悬空
+    grp.add(bm); this.buildingMeshes.push(bm);
+  }
+  // v2：战利品价值浮签（单例复用，跟随离玩家最近的未拾取战利品）
+  this.lootLabel=makeTextSprite();
+  if(this.lootLabel) grp.add(this.lootLabel);
   this._floodLvl=null; this.floodMesh=null;     // 满潮淹没预警（按水位变化节流重建）
 };
 /* ---------- 相机模式 ----------
@@ -4332,16 +4421,30 @@ FP.renderSalvage = function(t){
     ud.dia.scale.setScalar(0.9 + r*0.12);
     ud.ring.scale.setScalar(0.9 + r*0.10);
     for(const mm of ud.mats) mm.color.setHex(col); }
+  if(this.lootLabel){                                        // v2：最近未拾取战利品的"名称 ⌾价值"浮签
+    let best=null, bd=36;
+    for(const it of LootSystem.items){ if(it.taken) continue;
+      const dx=it.pos.x-P.pos.x, dz=it.pos.z-P.pos.z, d2=dx*dx+dz*dz;
+      if(d2<bd){ bd=d2; best=it; } }
+    if(best){ const gy=Math.max(MapHeight.sample(best.pos.x,best.pos.z),TideMission.level);
+      this.lootLabel.visible=true;
+      this.lootLabel.position.set(best.pos.x, gy+2.1, best.pos.z);
+      const lc=(RARITY_COL[best.rarity]||RARITY_COL[0]).toString(16).padStart(6,'0');
+      setSpriteText(this.lootLabel, best.name+" ⌾"+best.value, "#"+lc);
+    } else this.lootLabel.visible=false; }
   for(let i=0;i<this.scavPool.length;i++){ const s=Mission.entities.scavs[i], m=this.scavPool[i];
     if(!s||s.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
     m.position.set(s.pos.x, MapHeight.sample(s.pos.x,s.pos.z), s.pos.z);   // 人形原点在脚底
     const tp=(s.state==='TO_HIGH' && s.target) ? s.target : P.pos;         // 转移时朝向目标，否则朝玩家（它在找你）
-    m.rotation.y=Math.atan2(tp.x-s.pos.x, tp.z-s.pos.z); }
+    m.rotation.y=Math.atan2(tp.x-s.pos.x, tp.z-s.pos.z);
+    const glow=m.userData && m.userData.glow;                // v2：战斗状态红光呼吸
+    if(glow) glow.material.opacity=(s.state==='COMBAT') ? 0.16+0.10*Math.sin(t*6+i) : 0.0; }
   for(let i=0;i<this.dronePool.length;i++){ const d=Mission.entities.drones[i], m=this.dronePool[i];
     if(!d||d.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
     m.position.set(d.pos.x, Math.max(MapHeight.sample(d.pos.x,d.pos.z),TideMission.level)+2.0, d.pos.z);
     m.rotation.y=Math.atan2(P.pos.x-d.pos.x, P.pos.z-d.pos.z);
-    m.rotation.z=Math.sin(t*3.0+i)*0.05; }                                 // 悬浮微摆
+    m.rotation.z=Math.sin(t*3.0+i)*0.05;                                 // 悬浮微摆
+    if(m.userData.rotor) m.userData.rotor.rotation.y=t*22; }               // v2：旋翼自转
   if(this.wardenMesh){ const w=Mission.entities.warden;
     if(!w||w.state==='DEAD'){ this.wardenMesh.visible=false; }
     else { this.wardenMesh.visible=true;
@@ -4360,6 +4463,8 @@ FP.renderSalvage = function(t){
   for(let i=0;i<this.extrPool.length;i++){ const p=Extraction.points[i], m=this.extrPool[i];
     const active=p.elev>TideMission.level+0.2 && (p.closeAt===Infinity||TideMission.t<p.closeAt);
     m.material.color.setHex(active?0x50e696:0x666666); m.material.opacity=active?0.85:0.35;
+    if(m.userData.halo){ m.userData.halo.material.color.setHex(active?0x50e696:0x666666);
+      m.userData.halo.material.opacity=active?0.45:0.15; }
     const sp=this.extrLabels && this.extrLabels[i];
     if(sp){                                                   // 整数米变化才重绘纹理，避免每帧上传
       const d=Math.round(Math.hypot(p.pos.x-P.pos.x, p.pos.z-P.pos.z));
