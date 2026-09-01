@@ -130,6 +130,15 @@
     font-size:12.5px;color:#cfe0ec;line-height:1.75;background:rgba(120,150,175,.06)}
   .nearmiss .nmh{display:block;font-size:10.5px;letter-spacing:.22em;
     color:var(--dim);margin-bottom:4px}
+  /* 死亡分析：解释"你是怎么死的"，避免下一局重蹈覆辙 */
+  .analysis{margin:12px 0;padding:10px 14px;border:1px solid #5c3a3a;border-radius:6px;
+    font-size:12.5px;color:#ffd6cf;line-height:1.75;background:rgba(120,60,55,.12)}
+  .analysis .ah{display:block;font-size:10.5px;letter-spacing:.22em;
+    color:#ff9b87;margin-bottom:6px}
+  .analysis .arow{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+  .analysis .arow .atk{flex:1}
+  .analysis .arow .dmg{color:#fff;font-weight:600}
+  .analysis .ahint{display:block;margin-top:6px;color:#cfe0ec;font-size:11.5px}
   /* 潮痕分享码：等宽字体 + 可整段全选，方便玩家复制发给朋友 */
   .tidecode{margin:12px 0;padding:10px 14px;border:1px solid var(--line);border-radius:6px;
     background:rgba(120,150,175,.06)}
@@ -210,12 +219,16 @@
   <div class="dep-head">
     <button class="back" id="btn-deploy-back">‹ 返回</button>
     <h2>部署 · 干船坞</h2>
-    <div class="map">地图：沉没船坞 m01_slagwerf · 潮线预警 3/4/3 分钟</div>
+    <div class="map" id="dep-map-head">地图：沉没船坞 · 潮线预警 3/4/3 分钟</div>
   </div>
   <div class="statusbar" id="st-deploy">
     <div>债务 <span class="v" id="st-debt2">—</span></div>
     <div>信用点 <span class="v" id="st-credits2">—</span></div>
     <div>撤离次数 <span class="v" id="st-extract2">—</span></div>
+  </div>
+  <div class="sec">
+    <h3>地图（每张图是一座不同的潮汐舞台）</h3>
+    <div class="oprow" id="mapRow"></div>
   </div>
   <div class="sec">
     <h3>干员（锁定的是钩子：撤离更多次，解锁新打法）</h3>
@@ -224,6 +237,10 @@
   <div class="sec">
     <h3>武器</h3>
     <div class="gunrow" id="gunRow"></div>
+  </div>
+  <div class="sec">
+    <h3>专长（槽 A · 干员被动之外，再主动挑一个改变决策）</h3>
+    <div class="oprow" id="perkRow"></div>
   </div>
   <div class="sec">
     <h3>本局潮汐节奏（涨潮会淹没低地，提前规划路线）</h3>
@@ -235,23 +252,7 @@
   </div>
 </div>
 
-<!-- ③ 模态：怎么玩 -->
-<div class="modal" id="m-howto">
-  <div class="mbox">
-    <h2>怎么玩 · 30 秒看懂</h2>
-    <div class="step"><div class="ic" style="background:var(--orange)">1</div><div class="tx"><h4>这是什么游戏？</h4><p>单人 PvE 潮汐撤离。你是“潮民”，潜入即将被潮水淹没的废弃船坞打捞物资，活着撤到浮标点。不是 5v5，没有敌方玩家，只有 AI 拾荒者与潮汐本身。</p></div></div>
-    <div class="step"><div class="ic" style="background:var(--water)">2</div><div class="tx"><h4>一局多长？</h4><p>约 12 分钟（720 秒硬上限）。潮汐分低潮 / 涨潮 / 满潮三段，满潮后低地被淹，路线会变。超时未撤离 = 失败。</p></div></div>
-    <div class="step"><div class="ic" style="background:var(--danger)">3</div><div class="tx"><h4>死了会怎样？</h4><p>阵亡或潮水淹没你，本局带出的所有战利品全部丢失，但已还清的债务不退。安全撤离才能结算信用点，用来还债、上岸。</p></div></div>
-    <div class="rule">
-      <div><span class="ok">WASD</span> 移动（水越深越慢，没顶只能爬）　<span class="ok">鼠标</span> 瞄准 · <span class="ok">左键</span> 开火 · <span class="ok">R</span> 换弹</div>
-      <div><span class="ok">F</span> 长按拾取战利品　<span class="ok">E</span> 在浮标点长按撤离</div>
-      <div>先还清 <b>债务</b>，攒够 <b>信用点</b>，你就能 <b>上岸</b>。</div>
-    </div>
-    <div class="btnrow"><button class="btn primary" id="btn-howto-close">明 白 了</button></div>
-  </div>
-</div>
-
-<!-- ④ 模态：结算 -->
+<!-- ③ 模态：结算 -->
 <div class="modal" id="m-result">
   <div class="mbox">
     <div class="rv-big" id="rv-big">—</div>
@@ -261,6 +262,8 @@
     <div class="rv-line">击杀：<b id="rv-kills">—</b> · 受到伤害：<b id="rv-dmg">—</b> · 剩余血量：<b id="rv-hp">—</b></div>
     <div class="unlock" id="rv-unlock" style="display:none"></div>
     <div class="nearmiss" id="rv-nearmiss" style="display:none"></div>
+    <!-- ★ 死亡分析：仅阵亡一局显示。列明伤害来源与距离，避免玩家下次重蹈覆辙 -->
+    <div class="analysis" id="rv-analysis" style="display:none"></div>
     <!-- 潮痕分享：仅「满编局成功撤离」才出现 —— 阵亡的一局没有可被竞速的终点 -->
     <div class="tidecode" id="rv-tidecode" style="display:none">
       <span class="tch">本 局 潮 痕</span>
@@ -1946,6 +1949,12 @@ const AUD = {
   plant()  { this.tone(400, 0.13, 0.2, "sawtooth", 640); },
   defuse() { this.tone(920, 0.10, 0.2, "sine", 700); },
   warn()   { this.tone(210, 0.55, 0.24, "triangle", 680); },
+  // 泄洪警报：双音交替的警笛（与潮汐预警的单一上滑音区分开，听感一眼认出"该撤了"）
+  siren() {
+    if (!this.ok()) return;
+    this.tone(880, 0.28, 0.22, "sawtooth", 660);
+    setTimeout(() => this.tone(660, 0.28, 0.22, "sawtooth", 880), 300);
+  },
   ability(){ this.tone(500, 0.16, 0.22, "triangle", 1000); },
   hurt()   { this.burst(0.16, 380, 120, 0.3, "lowpass"); },
   ui()     { this.tone(680, 0.04, 0.12, "sine"); },
@@ -2083,6 +2092,13 @@ function evalAchievements(r){
       case 'totalHaul': ok = totalHaul >= a.n; break;
       case 'lowHp':     ok = !!r.extracted && (r.hpLeft||0) > 0 && (r.hpLeft||0) <= a.n; break;
     }
+    // 地图解锁成就：完全由 MAPS[id].unlock.ach 驱动，不写死地图 id（P1-b 原则）。
+    // 任一图只要配置了 unlock.ach，且玩家在该图满潮阶段成功撤离，就授予对应成就。
+    for(const id in MAPS){
+      const u = MAPS[id].unlock;
+      if(u && u.ach && u.ach.id && r.extracted && r.map === id && r.phase === 'High')
+        out.push(u.ach.id);
+    }
     if(ok) out.push(id);
   }
   return out;
@@ -2170,9 +2186,35 @@ const SALVAGE_OPS = {
   dredger  :{name:'浚',   wading:1.00, lowHp:0.25, lowHpSpeed:1.20,
              desc:'回潮：血量低于 25% 时移速 +20%'}
 };
-// 取干员某字段（缺省回退到基准值），保证换干员时不会残留上一名的加成
-const opVal = (k, dflt) => (salvOp && salvOp[k] != null) ? salvOp[k] : dflt;
-const SalvageLoadout = {op:'kestrel', gun:'K7'};
+// 专长系统（P1-d · 槽 A）：玩家在干员被动之外，再主动选一个专长。
+// 设计红线（08 号文档 §2.4）：每个专长都改变一次"可感知的决策" —— 它不堆数值，它改你的走位 / 时机判断。
+// 这些字段（swimSpeedMult / highTideSpeed / speedMult / anchorT / anchorDR）在
+// PlayerMission.speed() / damage() 里都已通过 opVal 接好钩子，所以"加专长 = 加配置 +
+// 让 opVal 让专长覆盖该字段"，逻辑层零改动，完全符合 P1-b 的"加内容只写配置"哲学。
+// 专长与干员被动的关系：专长优先（玩家主动选择），干员被动补位，最后才是基准默认值。
+const SALVAGE_PERKS = {
+  waveStep  :{ name:'踏浪', tag:'游泳态', unlock:{runs:9, hint:'深水不是终点'},
+    desc:'游泳态移速 +30% —— 满潮期你比水跑得快',
+    effects:[{field:'swimSpeedMult', val:1.30}] },
+  surgeRun  :{ name:'满潮疾行', tag:'满潮段', unlock:{runs:11, hint:'学会在最高潮抢时间'},
+    desc:'满潮段移速 +18% —— 水最猛时你最快',
+    effects:[{field:'highTideSpeed', val:1.18}] },
+  ebbTide   :{ name:'回潮', tag:'全局', unlock:{runs:13, hint:'退潮时别回头'},
+    desc:'全局移速 +10%',
+    effects:[{field:'speedMult', val:1.10}] },
+  calmAnchor:{ name:'镇浪', tag:'静止', unlock:{runs:15, hint:'让水推不动你'},
+    desc:'静止 1.2s 后受伤 -30%',
+    effects:[{field:'anchorT', val:1.2}, {field:'anchorDR', val:0.30}] },
+};
+// 取干员某字段（专长优先 → 干员被动 → 基准默认值），保证换干员 / 换专长时不残留上一名的加成
+const PERK = () => (SalvageLoadout.perk && SALVAGE_PERKS[SalvageLoadout.perk]) ? SALVAGE_PERKS[SalvageLoadout.perk] : null;
+const opVal = (k, dflt) => {
+  const pk = PERK();
+  if(pk && pk.effects.some(e=>e.field===k)) return pk.effects.find(e=>e.field===k).val;
+  if(salvOp && salvOp[k] != null) return salvOp[k];
+  return dflt;
+};
+const SalvageLoadout = {op:'kestrel', gun:'K7', perk:''};
 let salvGun = SALVAGE_GUNS.K7;
 let salvOp  = SALVAGE_OPS.kestrel;
 
@@ -2198,6 +2240,30 @@ const ShellMeta = {
     return !!achStore()[id];
   },
   gunUnlocked(id){ const g=GUNS.find(x=>x.id===id); return g ? this.extracted() >= g.unlock : false; },
+  // 专长解锁：纯次数门槛（比干员简单，因为专长是"锦上添花"而非"解锁新打法"）
+  perkUnlocked(id){ const p=SALVAGE_PERKS[id]; if(!p) return false; const u=p.unlock;
+    return (typeof Meta!=='undefined' && Meta.data && Meta.data.runs >= (u?u.runs:0)); },
+  perkLockText(id){ const p=SALVAGE_PERKS[id]; const u=p.unlock; if(!u) return '已解锁';
+    const runsLeft=Math.max(0,(u.runs||0)-((typeof Meta!=='undefined'&&Meta.data)?Meta.data.runs:0));
+    return '<b>'+(u.hint||'继续撤离以解锁专长')+'</b><span class="fb">再撤离 '+runsLeft+' 次</span>'; },
+  // 地图解锁：写死在 MAPS[id].unlock 里（null = 默认图，始终解锁）。
+  // 与干员解锁共用「成就 + 保底次数」双路径，保证冷启动玩家不会卡死在单图上没有新内容可看。
+  mapUnlocked(id){
+    const m=MAPS[id]; if(!m) return false;
+    const u=m.unlock; if(!u) return true;
+    if(typeof Meta!=='undefined' && Meta.data && Meta.data.runs >= (u.runs||0)) return true;
+    if(u.ach && achStore()[u.ach.id]) return true;
+    return false;
+  },
+  mapLockText(id){
+    const m=MAPS[id]; const u=m.unlock; if(!u) return '已解锁';
+    const runsLeft=Math.max(0,(u.runs||0)-((typeof Meta!=='undefined'&&Meta.data)?Meta.data.runs:0));
+    const ach = u.ach ? achProgress(u.ach.id) : null;
+    return '<b>'+(u.hint||'继续撤离以解锁新地图')+'</b>'+
+      (u.ach?u.ach.text:'')+
+      (ach?'<span class="pg">'+ach.cur+' / '+ach.n+'</span>':'')+
+      '<span class="fb">或再撤离 '+runsLeft+' 次</span>';
+  },
   // 锁定卡文案 = 勾人的一句话 + 成就条件 + 进度 + 保底路径
   opLockText(id){
     const U=UNLOCKS[id]; if(!U) return '继续撤离以解锁';
@@ -2245,7 +2311,7 @@ function bgAnim(){
 }
 
 const MenuShell = {
-  selOp:'kestrel', selGun:'K7', onStart:null,
+  selOp:'kestrel', selGun:'K7', selMap:'M01', selPerk:'', onStart:null,
   show(id){ $$('.screen').forEach(s=>s.classList.remove('on')); if(id) $(id).classList.add('on'); ShellMeta.refreshStatus(); },
   hideAll(){ $$('.screen').forEach(s=>s.classList.remove('on')); $$('.modal').forEach(m=>m.classList.remove('on')); },
   renderDeploy(){
@@ -2281,6 +2347,46 @@ const MenuShell = {
         this.selGun=id; this.renderDeploy();
       }));
     }
+    // 专长（槽 A）：玩家主动选一个，叠加在干员被动之上。加专长 = 加配置，逻辑层零改动。
+    const perkRow=$('perkRow');
+    if(perkRow){
+      const none={id:'', name:'无', tag:'', desc:'不选专长，纯靠干员被动'};
+      const cards=[none].concat(Object.keys(SALVAGE_PERKS).map(id=>{
+        const p=SALVAGE_PERKS[id]; return {id, name:p.name, tag:p.tag, desc:p.desc, unlock:p.unlock};
+      }));
+      perkRow.innerHTML = cards.map(c=>{
+        const unlocked = c.id==='' || ShellMeta.perkUnlocked(c.id);
+        const sel = this.selPerk===c.id;
+        const cls='opcard'+(sel?' sel':'')+(unlocked?'':' lock');
+        const lk = unlocked ? '' : '<div class="lk">'+ShellMeta.perkLockText(c.id)+'</div>';
+        return '<div class="'+cls+'" data-perk="'+c.id+'">'+
+          '<div class="nm">'+c.name+(c.tag?'<em>'+c.tag+'</em>':'')+'</div>'+
+          '<div class="ps">'+(c.desc||'')+'</div>'+lk+'</div>';
+      }).join('');
+      $$('.opcard', perkRow).forEach(c=>c.addEventListener('click',()=>{
+        const id=c.dataset.perk; if(id!=='' && !ShellMeta.perkUnlocked(id)) return;
+        this.selPerk=id; this.renderDeploy();
+      }));
+    }
+    // 地图选择：加图只写配置，这里只负责按 MAPS 渲染卡片 + 锁态。逻辑层不关心哪张图。
+    const mapRow=$('mapRow'); const mapHead=$('dep-map-head');
+    if(mapRow){
+      mapRow.innerHTML = Object.keys(MAPS).map(id=>{
+        const m=MAPS[id]; const unlocked=ShellMeta.mapUnlocked(id); const sel=this.selMap===id;
+        const cls='opcard'+(sel?' sel':'')+(unlocked?'':' lock');
+        const lk = unlocked ? '' : '<div class="lk">'+ShellMeta.mapLockText(id)+'</div>';
+        return '<div class="'+cls+'" data-map="'+id+'">'+
+          '<div class="nm">'+m.name+'<em>'+(m.climbSlope? '双层 · 泄洪':'单层 · 涨潮')+'</em></div>'+
+          '<div class="rl">'+m.tagline+'</div>'+
+          '<div class="ps">'+(m.brief||'')+'</div>'+lk+'</div>';
+      }).join('');
+      $$('.opcard', mapRow).forEach(c=>c.addEventListener('click',()=>{
+        const id=c.dataset.map; if(!ShellMeta.mapUnlocked(id)) return;
+        this.selMap=id; this.renderDeploy();
+      }));
+    }
+    if(mapHead){ const m=MAPS[this.selMap];
+      mapHead.textContent='地图：'+m.name+' · '+(m.climbSlope?'潮线预警 4/3/3 分钟 · 当心泄洪':'潮线预警 3/4/3 分钟'); }
   },
   showResult(r){
     r = r || {extracted:false,reason:'timeout',value:0,t:0,phase:'—',
@@ -2315,6 +2421,25 @@ const MenuShell = {
       else if(near.length){ nm.style.display='block';
         nm.innerHTML='<span class="nmh">下一个目标</span>'+near.map(s=>'⌁ '+s).join('<br>'); }
       else nm.style.display='none';
+    }
+    // ★ 死亡分析：仅阵亡一局渲染。让玩家知道"被谁打死的 / 距离多远 / 累计伤害多少"
+    const ax=$('rv-analysis');
+    if(ax){
+      if(!r.extracted && r.reason==='killed' && r.lastDamage && r.lastDamage.sources && r.lastDamage.sources.length){
+        const atkName = t=>({scavenger:'拾荒者', drone:'打捞无人机', warden:'潮汐守望者', unknown:'未知威胁'})[t]||t;
+        const rows = r.lastDamage.sources.map(s=>{
+          const dist = isFinite(s.distance) ? s.distance.toFixed(1)+'m' : '—';
+          return '<div class="arow"><span class="atk">⌁ '+atkName(s.type)+' ×'+s.hits+' @ '+dist+'</span><span class="dmg">−'+Math.round(s.damage)+' HP</span></div>';
+        }).join('');
+        const total = Math.round(r.lastDamage.total||0);
+        const tip = total>=80 ? '高伤害击：是近距离集火。下一局保持中远距离、优先点射打捞无人机。'
+                : total>=40 ? '中伤害击：是多项伤害叠加。留意背后来援。'
+                : '低伤害击：是单次重伤。开局后不要在原地呆超过静默期。';
+        ax.style.display='block';
+        ax.innerHTML = '<span class="ah">⛔ 死亡分析</span>'+rows+
+          '<div class="arow" style="margin-top:4px;border-top:1px solid #5c3a3a;padding-top:4px"><span class="atk">合计承受</span><span class="dmg">−'+total+' HP</span></div>'+
+          '<span class="ahint">'+tip+'</span>';
+      } else ax.style.display='none';
     }
     ShellMeta.data.lastSeen = nowE; ShellMeta.save();
     ShellMeta.refreshStatus();
@@ -2376,8 +2501,8 @@ const MenuShell = {
     $('btn-howto-close').addEventListener('click', closeHowto);
     $('btn-detail').addEventListener('click', ()=>{ const d=document.getElementById('st-detail'); if(d) d.hidden=!d.hidden; });
     $('btn-deploy-back').addEventListener('click', ()=>{ this.show('scr-title'); });
-    $('btn-launch').addEventListener('click', ()=>{ AUD.resume(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
-    $('btn-again').addEventListener('click', ()=>{ this.hideAll(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun}); });
+    $('btn-launch').addEventListener('click', ()=>{ AUD.resume(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun, map:this.selMap, perk:this.selPerk}); });
+    $('btn-again').addEventListener('click', ()=>{ this.hideAll(); if(this.onStart) this.onStart({op:this.selOp, gun:this.selGun, map:this.selMap, perk:this.selPerk}); });
     $('btn-result-back').addEventListener('click', ()=>{ this.hideAll(); this.show('scr-title'); });
     // 潮痕分享（P1-c.2）：结算屏生成 → 主菜单挑战入口 → 粘贴解析 → 开始竞速
     $('btn-tide-mark').addEventListener('click', ()=>{ this.generateTideMark(); });
@@ -2394,7 +2519,7 @@ const MenuShell = {
       this.hideAll();
       // 挑战局三要素：对方种子（c.0 复现同一张图）+ challenge:true（c.1 强制满编、取消教学壳）
       // + 沿用对手干员/武器 —— 不同配置跑出来的成绩没有可比性。
-      if(this.onStart) this.onStart({op:g.op, gun:g.gun, seed:g.seed, challenge:true, ghost:g});
+      if(this.onStart) this.onStart({op:g.op, gun:g.gun, seed:g.seed, challenge:true, ghost:g, map:g.map, perk:g.perk});
     });
     this.onStart = cfg => startSalvage(cfg);
     bgAnim();
@@ -2489,6 +2614,10 @@ const TideMission = {
   },
   remaining(){ return Math.max(0, this.HARD_CAP-this.t); },
   // ---- 开局静默期：新手观察窗口。期间所有敌人休眠（不移动/不索敌/不开火）----
+  // 15s 是对玩家**承诺过**的数字（快速上手面板 / 局内规则浮窗都写着「开局 15 秒敌方静止」），
+  // 也是 test_grace / test_seed / test_newbie 三套回归的断言值。
+  // 曾一度被悄悄调到 25s：既无调参记录，也与面向玩家的文案不符，
+  // 属于 07 文档 §05「调参纪律」禁止的"无依据改动"，故改回 15。
   GRACE_SEC: 15,
   graceActive(){ return this.running && this.t < this.GRACE_SEC; },
   graceLeft(){ return Math.max(0, this.GRACE_SEC - this.t); }
@@ -2511,26 +2640,158 @@ const Combat = {
   warden:   { cd:0.35, hit:0.50, falloff:0.018, min:0.12, dmg:[16,22], levelDmg:2.5 }
 };
 
-// ---- 地图标高（02文档 §2.2）----
+/* ==========================================================================
+   地图配置（P1-b，08 号文档 §3.2）
+   诊断回顾：M01 的地形原本是一串硬编码 if 分支，加第二张图必须复制整个 index.html，
+   800KB 的双胞胎文件。这里把地图彻底数据化 ——
+   **加一张新图 = 写一个配置对象，不碰任何逻辑代码。** 这是 P1-b 唯一的验收标准。
+
+   字段即契约（缺一个就会在 init 时炸，不给你静默失败的机会）：
+     W / D / CELL  网格尺寸（米）
+     baseElev      所有 zone 都没命中时的兜底标高
+     zones[]       {rect:[x0,x1,z0,z1], elev, tag}；rect 元素为 null 表示「该方向不设界」
+                   ★ 数组顺序即判定优先级：先具体地貌，后大背景（与旧 if 链逐行等价）
+     ramps[]       {id, rect, axis:'x'|'z', e0, e1} 楼梯/坡道：沿轴线性抬升。
+                   判定优先于 zones —— 它要从台地里「凿」出一条通道
+     lifts[]       货运升降机 {id, low:{x,z}, high:{x,z}, r, travel}。水幕打不到井道里
+     climbSlope    可通行坡度上限（抬升 ÷ 水平位移）。null = 不限制（M01 沿用旧行为）
+     spawn         出生点。★ 必须落在任一撤离点 2.5m 判定圈之外
+     extracts[]    {id, pos, elev, closeAt}
+     scav / drone / droneSpots / warden   敌人配置
+     lootRange     普通战利品采样范围（贴近边界但不越界）
+     lootWide      低价值战利品的更宽采样范围
+     sluice        泄洪机制配置；null = 该图没有泄洪
+     unlock        {runs, hint, ach} 或 null（初始解锁）
+   ========================================================================== */
+const MAPS = {
+  M01:{
+    id:'M01', name:'闸门区', city:'鹿特丹', sub:'沉没船坞',
+    W:60, D:40, CELL:2, baseElev:2.2, climbSlope:null,
+    brief:'水从下往上涨，路一块块消失 —— 教科书式的一课。',
+    // 判定顺序即优先级，与改造前的 if 链逐行等价，勿随意调序
+    zones:[
+      {rect:[  8,  26,   6,  18], elev:4.0, tag:'A 点高地'},
+      {rect:[ -26, -8, -18,  -8], elev:3.9, tag:'B 点高地'},
+      {rect:[   4, 28,   2,   8], elev:1.7, tag:'北通道引桥'},
+      {rect:[null,null,  8,  12], elev:1.8, tag:'北通道'},
+      {rect:[null,null, -6,  -2], elev:1.0, tag:'南通道'},
+      {rect:[  -8,  8,null,null], elev:0.0, tag:'干船坞底'},
+      {rect:[   4, 24, -18,  -6], elev:0.2, tag:'B 点低洼'},
+    ],
+    ramps:[], lifts:[],
+    spawn:{x:-24, z:2},
+    extracts:[
+      {id:'船坞闸门', pos:{x:-27,z: 0}, elev:2.2, closeAt:300},
+      {id:'南路码头', pos:{x: 26,z:-4}, elev:1.0, closeAt:Infinity},
+      {id:'北路平台', pos:{x: -2,z:10}, elev:1.8, closeAt:450},
+      {id:'高点·最终',pos:{x: 17,z:12}, elev:4.0, closeAt:Infinity},
+    ],
+    scav:12, drone:4, droneSpots:[[-20,10],[20,-15],[0,18],[-15,-5]],
+    warden:{x:0,z:0},
+    lootRange:{x:[-26,24], z:[-18,16]},
+    lootWide :{x:[-27,27], z:[-19,19]},
+    sluice:null,
+    unlock:null,
+  },
+
+  /* M02 白象街（重庆）—— 设定集 §3.1：「水从顶部倾泻，切断垂直通路」。
+     M01 教会玩家「水从下往上涨，往高处跑」；M02 要颠覆这个直觉：水从上面来。
+     地形是垂直双层：下层临江街道 0.2–0.8m（满潮 3.2m 必淹），上层山城台地 9–12m（永不淹）。
+     两者只能靠 4 处楼梯 + 2 处货运升降机连接 —— 于是「垂直通路」成了可以被切断的资源。 */
+  M02:{
+    id:'M02', name:'白象街', city:'重庆', sub:'山城双层',
+    W:60, D:40, CELL:2, baseElev:0.8, climbSlope:1.6,
+    brief:'水从上面来 —— 上层水库开闸时，楼梯会变成水墙。',
+    // 中央天桥取 11.0 而不是更高：南台地 9.0 → 天桥 的落差必须 ≤ 2m，
+    // 否则 smoothstep 插值后的局部坡度会超过 climbSlope，天桥变成只能从北台地单向上去的断头路，
+    // 南台地与下层后街就彻底与出生点失联（撤离点「后街渡口」不可达）。
+    zones:[
+      {rect:[  -7,   7,  -2,   2], elev:11.0, tag:'中央天桥'},
+      {rect:[ -16, -10,  -9,  -2], elev:10.8, tag:'望江挑台'},
+      {rect:[  10,  16,   2,   9], elev:10.0, tag:'缆车站台'},
+      {rect:[ -28,  28,  -9,  -2], elev:10.0, tag:'北台地'},
+      {rect:[ -28,  28,   2,   9], elev: 9.0, tag:'南台地'},
+      {rect:[ -28,  28,  -2,   2], elev: 0.2, tag:'老街中庭'},
+      {rect:[null,null, -20,  -9], elev: 0.6, tag:'下层主街'},
+      {rect:[null,null,   9,  20], elev: 0.4, tag:'下层后街'},
+    ],
+    // 4 处楼梯：沿轴 9.4m / 11m ≈ 0.85 的缓坡，可通行；
+    // 台地边界则是 9.4m / 2m ≈ 4.7 的崖壁 —— 走不上去，只能走这里。
+    // ★ climbSlope 取 1.6 是量出来的，不是拍的：sample() 用 smoothstep 插值，
+    //   局部峰值坡度 = 线性坡度 × 1.5 = 格间高差 / CELL × 1.5。
+    //   楼梯峰值 ≈1.29（可走）；街→楼梯侧壁峰值 ≈1.92、崖壁峰值 ≈7.0（都 >1.6，挡下）。
+    //   ★ 关键一致性：BFS 与 moveTo 必须用同一度量（峰值坡度），否则 BFS 以为能走、
+    //      moveTo 实际卡墙——AI 会顶着楼梯侧壁原地抖（踩过这个坑）。
+    ramps:[
+      {id:'北·白象梯', rect:[-27,-23,-20,-9], axis:'z', e0:0.6, e1:10.0},
+      {id:'北·临江梯', rect:[  23, 27,-20,-9], axis:'z', e0:0.6, e1:10.0},
+      {id:'南·十八梯', rect:[-27,-23,  9, 20], axis:'z', e0:9.0, e1: 0.4},
+      {id:'南·凯旋梯', rect:[  23, 27,  9, 20], axis:'z', e0:9.0, e1: 0.4},
+    ],
+    // 货运升降机：慢（1.5s 站在原地），但井道封闭 —— 泄洪的水幕打不到它。
+    // 它存在的意义就是给玩家一个「明知要被淋也要走」之外的选项。
+    lifts:[
+      {id:'西货梯', low:{x:-12,z:-14}, high:{x:-12,z:-4}, r:1.8, travel:1.5},
+      {id:'东货梯', low:{x: 12,z: 14}, high:{x: 12,z: 5}, r:1.8, travel:1.5},
+    ],
+    spawn:{x:-22, z:-18},
+    extracts:[
+      {id:'山城索道站',pos:{x:  0,z:  0}, elev:12.0, closeAt:Infinity},
+      {id:'南台货运台',pos:{x: 20,z:  5}, elev: 9.0, closeAt:Infinity},
+      {id:'江畔趸船',  pos:{x:-24,z:-16}, elev: 0.6, closeAt:300},
+      {id:'后街渡口',  pos:{x:-20,z: 16}, elev: 0.4, closeAt:420},
+    ],
+    scav:12, drone:4, droneSpots:[[0,-13],[0,13],[-8,0],[8,0]],
+    warden:{x:0,z:-5},
+    lootRange:{x:[-27,27], z:[-18,18]},
+    lootWide :{x:[-28,28], z:[-19,19]},
+    // 泄洪：设定集原话「上层水库开闸，水幕自上而下倾泻，覆盖 2 处楼梯」。
+    // 时刻表写死在配置里（红线 1：潮汐永远可预测，不确定性来自敌人与贪心，不来自机制）；
+    // 「哪 2 处楼梯」由本局种子决定（见 Sluice.reset），同种子必复现，幽灵竞速才公平。
+    sluice:{
+      times:[240, 420], warnLead:15, duration:45,
+      dmg:8, slow:0.30, targets:2,
+      candidates:['北·白象梯','北·临江梯','南·十八梯','南·凯旋梯'],
+    },
+    // 解锁走成就式（08 号文档 §2.3 的同一套哲学）：先证明你在 M01 撑到了满潮。
+    unlock:{runs:8, hint:'先学会在闸门区被水追着跑',
+      ach:{id:'m02_gate_high', type:'gateHigh', n:1, text:'在闸门区（白象街）满潮阶段成功撤离'}},
+  },
+};
+let CURRENT_MAP = 'M01';
+const curMap = ()=> MAPS[CURRENT_MAP] || MAPS.M01;
+// rect 元素为 null 表示该方向不设界（旧实现里 `if(z>=8&&z<=12)` 就是这种无界条件）
+function rectHas(r,x,z){
+  return (r[0]===null||x>=r[0]) && (r[1]===null||x<=r[1])
+      && (r[2]===null||z>=r[2]) && (r[3]===null||z<=r[3]);
+}
+// 楼梯标高：沿 axis 从 e0 线性抬升到 e1
+function rampElev(rm,x,z){
+  const r=rm.rect, ax=(rm.axis==='x');
+  const lo=ax?r[0]:r[2], hi=ax?r[1]:r[3], v=ax?x:z;
+  return lerp(rm.e0, rm.e1, (hi>lo)?clamp((v-lo)/(hi-lo),0,1):0);
+}
+
+// ---- 地图标高（02文档 §2.2；P1-b 起改为配置驱动）----
 const MapHeight = {
   W:60, D:40, CELL:2, grid:null, nx:0, nz:0,
   init(){
-    this.nx=this.W/this.CELL; this.nz=this.D/this.CELL;
+    const c=curMap();
+    this.W=c.W; this.D=c.D; this.CELL=c.CELL;
+    this.nx=Math.round(this.W/this.CELL); this.nz=Math.round(this.D/this.CELL);
     this.grid=new Float32Array(this.nx*this.nz);
     for(let j=0;j<this.nz;j++) for(let i=0;i<this.nx;i++){
       const x=(i+.5)*this.CELL-this.W/2, z=(j+.5)*this.CELL-this.D/2;
       this.grid[j*this.nx+i]=this.zone(x,z);
     }
   },
+  // 判定顺序：楼梯 → 地貌区块 → 兜底标高。
+  // 楼梯必须先判 —— 它是从台地里凿出来的通道，后判会被台地整片盖住。
   zone(x,z){
-    if(x>=  8&&x<=26&&z>=  6&&z<=18) return 4.0;
-    if(x>=-26&&x<=-8&&z>=-18&&z<=-8) return 3.9;
-    if(x>=  4&&x<=28&&z>=  2&&z<= 8) return 1.7;
-    if(z>= 8&&z<=12)                 return 1.8;
-    if(z>=-6&&z<=-2)                 return 1.0;
-    if(x>=-8&&x<= 8)                 return 0.0;
-    if(x>=  4&&x<=24&&z>=-18&&z<=-6) return 0.2;
-    return 2.2;
+    const c=curMap();
+    for(const rm of c.ramps) if(rectHas(rm.rect,x,z)) return rampElev(rm,x,z);
+    for(const zn of c.zones) if(rectHas(zn.rect,x,z)) return zn.elev;
+    return c.baseElev;
   },
   sample(x,z){
     const gx=clamp((x+this.W/2)/this.CELL-.5,0,this.nx-1);
@@ -2542,22 +2803,95 @@ const MapHeight = {
     return lerp(lerp(g(i,j),g(i2,j),fx), lerp(g(i,j2),g(i2,j2),fx), fz);
   },
   depthAt(x,z){ return Math.max(0, TideMission.level-this.sample(x,z)); },
+  // 可通行坡度上限（抬升 ÷ 水平位移）。Infinity = 不限制（M01 沿用改造前的行为）
+  climbSlope(){ const s=curMap().climbSlope; return (s==null)?Infinity:s; },
+  // 位移是否合法：上坡不能超过 climbSlope。这是 M02「垂直双层」能成立的前提 ——
+  // 没有它，玩家能直接走上 9m 的崖壁，楼梯与升降机就都失去了意义。
+  canStep(from,to){
+    const sl=this.climbSlope();
+    if(!isFinite(sl)) return true;                    // 下坡永远允许（可以跳下去）
+    const d=Math.hypot(to.x-from.x, to.z-from.z);
+    if(d<1e-6) return true;
+    return (this.sample(to.x,to.z)-this.sample(from.x,from.z)) <= sl*d;
+  },
+  cellCenter(i,j){ return {x:(i+.5)*this.CELL-this.W/2, z:(j+.5)*this.CELL-this.D/2}; },
+  cellOf(p){
+    return { i:clamp(Math.floor((p.x+this.W/2)/this.CELL),0,this.nx-1),
+             j:clamp(Math.floor((p.z+this.D/2)/this.CELL),0,this.nz-1) };
+  },
+  // 抢高地：M01（无坡度限制）走旧的「全局最近」；有坡度限制的图走 BFS，
+  // 否则 AI 会朝对面台地直线冲、撞在崖壁上抖动 —— 那看起来像 AI 变傻了。
   nearestHigh(pos,minElev){
+    if(!isFinite(this.climbSlope())) return this._nearestHighDirect(pos,minElev);
+    return this._nearestHighBfs(pos,minElev) || this._nearestHighDirect(pos,minElev);
+  },
+  _nearestHighDirect(pos,minElev){
     let best=null,bd=1e9;
     for(let j=0;j<this.nz;j++) for(let i=0;i<this.nx;i++){
       if(this.grid[j*this.nx+i]<minElev) continue;
-      const p={x:(i+.5)*this.CELL-this.W/2, z:(j+.5)*this.CELL-this.D/2};
-      const d=dist(pos,p); if(d<bd){bd=d;best=p;}
+      const d=dist(pos,this.cellCenter(i,j)); if(d<bd){bd=d;best=this.cellCenter(i,j);}
     }
     return best;
   },
+  // 从脚下出发做一次广度优先，只走「爬得上去」的相邻格，返回最近的高于 minElev 的点。
+  // 30×20 = 600 格，且只在 AI 重规划时（0.5s 一次）调用，开销可忽略。
+  _nearestHighBfs(pos,minElev){
+    const s=this.cellOf(pos), nx=this.nx, nz=this.nz, maxStep=this.climbSlope()*this.CELL;
+    const seen=new Uint8Array(nx*nz), q=[s.j*nx+s.i]; seen[s.j*nx+s.i]=1;
+    let head=0;
+    while(head<q.length){
+      const c=q[head++], ci=c%nx, cj=(c-ci)/nx, ch=this.grid[c];
+      if(ch>=minElev && (ci!==s.i||cj!==s.j)) return this.cellCenter(ci,cj);
+      const nb=[[ci+1,cj],[ci-1,cj],[ci,cj+1],[ci,cj-1]];
+      for(const [i2,j2] of nb){
+        if(i2<0||i2>=nx||j2<0||j2>=nz) continue;
+        const k=j2*nx+i2; if(seen[k]) continue;
+        if(Math.abs(this.grid[k]-ch)>maxStep) continue;    // 崖壁：过不去
+        seen[k]=1; q.push(k);
+      }
+    }
+    return null;
+  },
+  // 上高地的**完整路径**（BFS + 父指针回溯），供 AI 沿路点行走。
+  // 白象街的楼梯是窄井道：只能从低端踏上，侧面是崖壁。直线冲向目标的 AI
+  // 会一头撞在楼梯侧壁上原地抖动 —— 那看起来就是 AI 变傻了。
+  // M01（无攀爬限制）返回 null，沿用旧的直线行为，零回归。
+  pathToHigh(from,minElev){
+    if(!isFinite(this.climbSlope())) return null;
+    const s=this.cellOf(from), nx=this.nx, nz=this.nz, sl=this.climbSlope(), CELL=this.CELL;
+    // 与 moveTo 同一度量：用 smoothstep 峰值坡度（格间高差 / CELL × 1.5），
+    // 否则 BFS 放行的侧壁在 moveTo 里会被卡墙（详见 climbSlope 注释）。
+    const passable=(a,b)=> Math.abs(a-b)/CELL*1.5 <= sl;
+    const seen=new Uint8Array(nx*nz), prev=new Int32Array(nx*nz).fill(-1);
+    const start=s.j*nx+s.i; seen[start]=1;
+    const q=[start]; let head=0, goal=-1;
+    while(head<q.length){
+      const c=q[head++], ci=c%nx, cj=(c-ci)/nx, ch=this.grid[c];
+      if(ch>=minElev && c!==start){ goal=c; break; }
+      for(const [i2,j2] of [[ci+1,cj],[ci-1,cj],[ci,cj+1],[ci,cj-1]]){
+        if(i2<0||i2>=nx||j2<0||j2>=nz) continue;
+        const k=j2*nx+i2; if(seen[k]) continue;
+        if(!passable(ch, this.grid[k])) continue;    // 崖壁：过不去
+        seen[k]=1; prev[k]=c; q.push(k);
+      }
+    }
+    if(goal<0) return null;
+    const out=[]; let c=goal;
+    while(c!==-1 && c!==start){ const ci=c%nx; out.push(this.cellCenter(ci,(c-ci)/nx)); c=prev[c]; }
+    out.reverse();
+    return out.length ? out : null;
+  },
   randomLowPoint(maxElev){
+    const r=curMap().lootRange;
     for(let k=0;k<50;k++){
-      const p={x:rrnd(-26,24), z:rrnd(-18,16)};   // rrnd→Rng.current：种子可复现地图
+      const p={x:rrnd(r.x[0],r.x[1]), z:rrnd(r.z[0],r.z[1])};   // rrnd→Rng.current：种子可复现地图
       if(this.sample(p.x,p.z)<=maxElev) return p;
     }
     return {x:0,z:0};
-  }
+  },
+  // 活动边界：留 0.5m，免得玩家卡在网格外沿
+  boundX(){ return this.W/2-0.5; },
+  boundZ(){ return this.D/2-0.5; }
 };
 
 // ---- 四档涉水状态机（含滞后区间）----
@@ -2591,9 +2925,11 @@ const LootSystem = {
     for(let n=0;n<25;n++){
       const r=Rng.current();                 // rrnd 同源：种子可复现战利品布局
       const t=r<.03?3:r<.15?2:r<.40?1:0;
+      // 采样范围来自地图配置（P1-b）：换图后战利品不会落在图外或挤在角落
+      const w=curMap().lootWide;
       const pos = t===3 ? MapHeight.randomLowPoint(0.3)
                 : t===2 ? MapHeight.randomLowPoint(1.2)
-                : { x:rrnd(-27,27), z:rrnd(-19,19) };
+                : { x:rrnd(w.x[0],w.x[1]), z:rrnd(w.z[0],w.z[1]) };
       const R=this.RARITY[t];
       this.items.push({ pos, rarity:t, name:R.name,
         value:Math.round(rrnd(R.v[0],R.v[1])), kg:rrnd(0.5,1.5+t*2), taken:false });
@@ -2605,8 +2941,8 @@ const LootSystem = {
       const angs=[0.55, 2.45];
       for(const ang of angs){
         const r = rrnd(8,10);
-        const x = clamp(SPAWN_POS.x + Math.cos(ang)*r, -29, 29);
-        const z = clamp(SPAWN_POS.z + Math.sin(ang)*r, -19, 19);
+        const x = clamp(SPAWN_POS.x + Math.cos(ang)*r, -MapHeight.boundX(), MapHeight.boundX());
+        const z = clamp(SPAWN_POS.z + Math.sin(ang)*r, -MapHeight.boundZ(), MapHeight.boundZ());
         this.items.push({ pos:{x,z}, rarity:0, name:'起步补给',
           value:Math.round(rrnd(120,300)), kg:1, taken:false });
       }
@@ -2637,12 +2973,11 @@ const BackPack = {
 // ---- 撤离系统 ----
 const Extraction = {
   CHANNEL:8, channelT:0, alwaysShow:false,
-  points:[
-    {id:'船坞闸门', pos:{x:-27,z: 0}, elev:2.2, closeAt:300},
-    {id:'南路码头', pos:{x: 26,z:-4}, elev:1.0, closeAt:Infinity},
-    {id:'北路平台', pos:{x:-2,z:10}, elev:1.8, closeAt:450},
-    {id:'高点·最终', pos:{x:17,z:12}, elev:4.0, closeAt:Infinity},
-  ],
+  // 撤离点来自地图配置（P1-b）。深拷贝：Elevation/closeAt 只读，但 pos 会被渲染层引用，
+  // 直接持有配置对象的话，任何一处就地修改都会污染 MAPS 这张静态表。
+  points: MAPS.M01.extracts.map(p=>({id:p.id, pos:{x:p.pos.x, z:p.pos.z}, elev:p.elev, closeAt:p.closeAt})),
+  load(list){ this.points = (list||MAPS.M01.extracts).map(p=>
+    ({id:p.id, pos:{x:p.pos.x, z:p.pos.z}, elev:p.elev, closeAt:p.closeAt})); },
   MIN_LOOT: 1,   // 撤离门槛：至少带 1 件战利品。空手站再久也不结算
   active(){ return this.points.filter(p=>
     (this.alwaysShow || TideMission.t<p.closeAt) && p.elev>TideMission.level+0.2); },
@@ -2660,39 +2995,148 @@ const Extraction = {
   reset(){ this.channelT=0; }
 };
 
+/* ---- 货运升降机（M02 白象街）----
+   双层地形里，楼梯是快路，升降机是慢路：站在踏板上 travel 秒才把你送上去。
+   它的价值不在于快 —— 泄洪的水幕只从楼梯上方倾泻，井道是封闭的。
+   于是每一次泄洪都在问同一个问题：抢时间走楼梯，还是多花 1.5 秒站在原地坐电梯？ */
+const LiftSystem = {
+  list:[], cd:0, riding:null, rideT:0, lastMsg:"",
+  reset(){ this.list=curMap().lifts||[]; this.cd=0; this.riding=null; this.rideT=0; },
+  // 玩家当前站在哪台升降机的哪一侧踏板上（不在任何踏板上则返回 null）
+  padAt(pos){
+    for(const l of this.list){
+      if(dist(pos,l.low ) <= (l.r||1.8)) return {lift:l, side:'low'};
+      if(dist(pos,l.high) <= (l.r||1.8)) return {lift:l, side:'high'};
+    }
+    return null;
+  },
+  update(dt,P){
+    if(!this.list.length) return;
+    if(this.cd>0) this.cd-=dt;
+    const hit=(P && !P.dead) ? this.padAt(P.pos) : null;
+    if(!hit){ this.riding=null; this.rideT=0; return; }
+    // 换了一台 / 换了一侧，重新计时 —— 防止在两台之间来回蹭进度
+    if(!this.riding || this.riding.lift!==hit.lift || this.riding.side!==hit.side){
+      this.riding=hit; this.rideT=0;
+    }
+    this.rideT+=dt;
+    if(this.rideT>=(hit.lift.travel||1.5) && this.cd<=0){
+      const dest=(hit.side==='low') ? hit.lift.high : hit.lift.low;
+      P.pos.x=dest.x; P.pos.z=dest.z;
+      this.cd=1.2; this.rideT=0; this.riding=null;
+      if(typeof AUD!=='undefined' && AUD.ui) AUD.ui();
+      Telemetry.log('lift',{id:hit.lift.id, to:(hit.side==='low'?'high':'low')});
+    }
+  },
+  // 供 HUD 显示：站在踏板上时的读条进度
+  progress(){ return (this.riding && this.riding.lift) ? clamp(this.rideT/(this.riding.lift.travel||1.5),0,1) : 0; },
+  ridingId(){ return this.riding ? this.riding.lift.id : ""; }
+};
+
+/* ---- 泄洪（M02 白象街 · 设定集 §3.1「水从顶部倾泻，切断垂直通路」）----
+   M01 教玩家「水从下往上涨，往高处跑」。M02 要颠覆这个直觉：**水从上面来。**
+   上层水库在固定时刻开闸，水幕自上而下罩住 2 处楼梯：通行速度降到 30%，每秒 8 点伤害。
+
+   两条不可动摇的约束：
+   ① **时刻表写死在配置里**，不随机 —— 设定集 §10 红线 1：潮汐永远可预测，
+      不确定性必须来自敌人与贪心，不来自机制。玩家开局就能查到「4:00 和 7:00 会泄洪」。
+   ② **哪 2 处楼梯由本局种子决定**，生成期用 Rng 抽取并锁定 ——
+      幽灵竞速要求双方跑同一张图，水幕位置自然也必须可复现（P1-c.0 的同一条道理）。
+
+   为什么水幕只伤玩家、不伤拾荒者：8 点/秒 × 45 秒 = 360，拾荒者只有 150 血，
+   照直线走过去的 AI 会成片死在楼梯上 —— 那等于泄洪帮玩家清场，
+   反而摧毁 §01「满潮时高地是绞肉机」这个核心设计。所以 AI 只被减速（它们会绕开水幕）。 */
+const Sluice = {
+  cfg:null, events:[], _warned:{}, onWarn:null,
+  reset(){
+    const c=curMap().sluice;
+    this.cfg=c||null; this.events=[]; this._warned={};
+    if(!c) return;                       // M01 没有泄洪，这里直接返回、不消耗 Rng（保证 M01 逐字节复现）
+    const times=c.times||[];
+    this.events=times.map(t=>{
+      const pool=(c.candidates||[]).slice(), pick=[];
+      for(let i=0;i<Math.min(c.targets||0,pool.length);i++)
+        pick.push(pool.splice(Math.floor(Rng.current()*pool.length)%Math.max(1,pool.length),1)[0]);
+      return { t, dur:c.duration||45, stairs:pick };
+    });
+  },
+  activeAt(t){
+    if(!this.cfg) return [];
+    const out=[];
+    for(const e of this.events) if(t>=e.t && t<e.t+e.dur) out.push(e);
+    return out;
+  },
+  rampById(id){ return (curMap().ramps||[]).find(r=>r.id===id)||null; },
+  // 玩家 / 敌人是否正站在水幕里（返回被罩住的楼梯配置）
+  curtainAt(pos, t){
+    if(!this.cfg || !pos) return null;
+    const tt=(t==null)?TideMission.t:t;
+    for(const e of this.activeAt(tt)) for(const id of e.stairs){
+      const rm=this.rampById(id);
+      if(rm && rectHas(rm.rect,pos.x,pos.z)) return rm;
+    }
+    return null;
+  },
+  speedMult(pos){ return this.curtainAt(pos) ? (this.cfg.slow||0.3) : 1; },
+  // 下一次泄洪（含已进入进行中的），供局前潮讯与局内 HUD 展示
+  nextEvent(t){
+    if(!this.events.length) return null;
+    const tt=(t==null)?TideMission.t:t;
+    for(const e of this.events) if(tt < e.t + e.dur) return e;
+    return null;
+  },
+  // 预警：到点前 warnLead 秒触发一次（听觉 + HUD）。由 Mission.update 每帧调用
+  tickWarnings(t){
+    if(!this.cfg) return;
+    for(const e of this.events){
+      const key='w'+e.t;
+      if(!this._warned[key] && t >= e.t - (this.cfg.warnLead||15) && t < e.t){
+        this._warned[key]=true;
+        if(this.onWarn) this.onWarn(e);
+        // ★ 字段名不能叫 t：Telemetry.log 用 Object.assign({t:当前时刻}, data)，
+        //   写 t 会把事件自身的时间戳覆盖成"开闸时刻"，预警看起来就成了马后炮。
+        Telemetry.log('sluice_warn',{at:e.t, stairs:e.stairs});
+      }
+    }
+  }
+};
+
 // ---- 拾荒者 ----
 class Scavenger{
   constructor(pos){
     this.pos={x:pos.x,z:pos.z}; this.home={x:pos.x,z:pos.z};
     this.hp=150; this.speed=4.2; this.state='PATROL';
     this.target=null; this.fireCd=0; this.drownT=0; this.wanderT=0;
+    this.path=null;      // BFS 路点（仅在有攀爬限制的地图上非空）
     this.lootValue=Math.round(srnd(80,250));
+  }
+  // 撤往高地。双层地形上必须沿 BFS 路点走，不能朝目标直线冲（楼梯侧面是崖壁）
+  goHigh(minElev){
+    this.state='TO_HIGH';
+    this.path = MapHeight.pathToHigh(this.pos, minElev);
+    this.target = this.path ? this.path[0] : MapHeight.nearestHigh(this.pos, minElev);
   }
   update(dt,player){
     if(this.state==='DEAD') return;
     // ★ 开局静默期：完全休眠。不移动、不索敌、不开火，给玩家 15s 观察窗口
     if(TideMission.graceActive()) return;
     const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
-    // ★ 潮汐响应：预判30s后水位，提前撤往高地（命门，不可砍）
-    if(this.state!=='COMBAT'){
-      const fut=TideMission.project(30);
-      if(MapHeight.sample(this.pos.x,this.pos.z)<fut-0.3){
-        if(this.state!=='TO_HIGH'){
-          this.state='TO_HIGH';
-          this.target=MapHeight.nearestHigh(this.pos,fut+0.5);
-          Telemetry.log('scav_to_high',{});
-        }
-      }
-    }
+    const fut=TideMission.project(30);
+    // 脚下将在 30s 内没入预测水位 + 0.3m 余量 → 不安全，必须撤
+    const unsafe = MapHeight.sample(this.pos.x,this.pos.z) < fut-0.3;
     const d=dist(this.pos,player.pos);
     // ★ 新手（教学壳）交战距离收紧到 13m（< 出生点 15m 安全半径）——直击「15m 内无敌人却仍被跨图集火」的设计矛盾，
     //   静默期结束不会瞬间 surround；挑战模式(novice=false)保持原 26m 全流程难度。
     const ENGAGE = (typeof Mission!=='undefined' && Mission.novice) ? 13 : 26;
-    if(!player.dead && d<ENGAGE) this.state='COMBAT';
-    else if(this.state==='COMBAT'){
-      this.state='TO_HIGH';
-      this.target=MapHeight.nearestHigh(this.pos,TideMission.level+0.8);
-    }
+    // ★ 退避优先于交战（满潮核心）：满潮时站在街上会被淹死，所以"撤上高地"高于"追着你打"。
+    //   只要脚下不安全就锁定 TO_HIGH 往上爬——设定集 §01 就是要让 AI 也会抢高地，
+    //   否则泄洪/涨潮等于帮玩家清场，反而毁掉"满潮时高地是绞肉机"的设计。
+    if(unsafe){
+      const needRepath = this.state!=='TO_HIGH' ||
+        (isFinite(MapHeight.climbSlope()) && (!this.path || this.path.length===0));
+      if(needRepath){ this.goHigh(fut+0.5); Telemetry.log('scav_to_high',{}); }
+    } else if(!player.dead && d<ENGAGE) this.state='COMBAT';
+    else if(this.state==='COMBAT') this.goHigh(TideMission.level+0.8);
     if(depth>2.4){ this.drownT+=dt; if(this.drownT>8) return this.die(); }
     else this.drownT=0;
 
@@ -2701,13 +3145,20 @@ class Scavenger{
       if(this.wanderT<=0){ this.wanderT=srnd(1,3);
         this.target={x:this.home.x+srnd(-6,6), z:this.home.z+srnd(-6,6)}; }
       this.moveTo(dt,this.target,this.speed*0.5);
-    } else if(this.state==='TO_HIGH') this.moveTo(dt,this.target,this.speed);
+    } else if(this.state==='TO_HIGH'){
+      // 沿 BFS 路点走：走到当前路点附近就换下一个，避免直线冲楼梯侧壁卡死
+      if(this.path && this.path.length){
+        if(dist(this.pos,this.path[0])<1.5) this.path.shift();
+        if(this.path.length) this.target=this.path[0];
+      }
+      this.moveTo(dt,this.target,this.speed);
+    }
     else if(this.state==='COMBAT'){
       const C=Combat.scavenger;
       this.fireCd-=dt;
       if(this.fireCd<=0){ this.fireCd=C.cd;
         const hitP=clamp(C.hit-d*C.falloff,C.min,C.hit);
-        if(Math.random()<hitP) player.damage(srnd(C.dmg[0],C.dmg[1]),'scavenger');
+        if(Math.random()<hitP) player.damage(srnd(C.dmg[0],C.dmg[1]),'scavenger',d);
       }
     }
   }
@@ -2717,7 +3168,14 @@ class Scavenger{
     if(L<0.5) return;
     const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
     const m=depth>2.0?0.4:depth>1.2?0.55:depth>0.3?0.85:1;
-    this.pos.x+=dx/L*sp*m*dt; this.pos.z+=dz/L*sp*m*dt;
+    // 泄洪水幕：AI 只被减速、不受伤（理由见 Sluice 的注释）——它们会绕开水幕走
+    const sl=(typeof Sluice!=='undefined') ? Sluice.speedMult(this.pos) : 1;
+    const step=sp*m*sl*dt;
+    // 双层地形：撞上崖壁时贴着墙滑（先试 X 再试 Z），否则 AI 会顶着 9m 的坎原地抖
+    const tryX={x:this.pos.x+dx/L*step, z:this.pos.z};
+    const tryZ={x:this.pos.x, z:this.pos.z+dz/L*step};
+    if(MapHeight.canStep(this.pos,tryX)) this.pos.x=tryX.x;
+    if(MapHeight.canStep(this.pos,tryZ)) this.pos.z=tryZ.z;
   }
   damage(v){ this.hp-=v; if(this.hp<=0) this.die(); }
   die(){ if(this.state==='DEAD') return; this.state='DEAD';
@@ -2746,7 +3204,7 @@ class SalvageDrone{
       this.fireCd-=dt;
       if(this.fireCd<=0){ this.fireCd=C.cd;
         if(Math.random()<clamp(C.hit-d*C.falloff,C.min,C.hit))
-          player.damage(srnd(C.dmg[0],C.dmg[1])*(high?C.highMult:1),'drone');
+          player.damage(srnd(C.dmg[0],C.dmg[1])*(high?C.highMult:1),'drone',d);
       }
       const dx=player.pos.x-this.pos.x,dz=player.pos.z-this.pos.z,L=Math.hypot(dx,dz);
       if(L>12){ this.pos.x+=dx/L*sp*dt; this.pos.z+=dz/L*sp*dt; }
@@ -2786,7 +3244,7 @@ class TideWarden{
       this.fireCd-=dt;
       if(this.fireCd<=0){ this.fireCd=C.cd;
         if(Math.random()<clamp(C.hit-d*C.falloff,C.min,C.hit))
-          player.damage(srnd(C.dmg[0],C.dmg[1])+TideMission.level*C.levelDmg,'warden'); }
+          player.damage(srnd(C.dmg[0],C.dmg[1])+TideMission.level*C.levelDmg,'warden',d); }
       const dx=player.pos.x-this.pos.x,dz=player.pos.z-this.pos.z;
       const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
       if(d>8 && depth<2.0){ this.pos.x+=dx/d*this.speed*dt; this.pos.z+=dz/d*this.speed*dt; }
@@ -2795,16 +3253,19 @@ class TideWarden{
 }
 
 // ---- 玩家（单人模式）----
-// 出生点 = 闸门外侧滩涂。刻意与撤离点「船坞闸门」(-27,0) 相距 3.6m，
-// 落在其 2.5m 撤离判定圈之外，避免「出生即站在撤离点上」。
-const SPAWN_POS = {x:-24, z:2};
+// 出生点来自地图配置（P1-b）。M01 的出生点是闸门外侧滩涂，刻意与撤离点「船坞闸门」(-27,0)
+// 相距 3.6m，落在其 2.5m 撤离判定圈之外 —— 否则「出生即站在撤离点上」会让整局塌缩成站桩 8 秒。
+let SPAWN_POS = {x:MAPS.M01.spawn.x, z:MAPS.M01.spawn.z};
 const PlayerMission = {
   pos:{x:SPAWN_POS.x, z:SPAWN_POS.z}, hp:100, dead:false, armor:0,  maxArmor:0,
   ammo:240, mag:30, lootT:0, lootTarget:null, kills:0, dmgTaken:0, stillT:0,
+  // 最近伤害来源循环缓冲（最多 8 次），用于死亡屏"死于谁"分析。
+  // 每项 {src:'scavenger'|'drone'|'warden', dmg, dist, t}。t 是 TideMission.t。
+  lastDmg: [],
   reset(){ this.pos={x:SPAWN_POS.x, z:SPAWN_POS.z}; this.hp=100; this.dead=false;
     this.armor=0; this.maxArmor=0;
     this.ammo=240; this.mag=30; this.lootT=0; this.lootTarget=null;
-    this.kills=0; this.dmgTaken=0; this.stillT=0; },
+    this.kills=0; this.dmgTaken=0; this.stillT=0; this.lastDmg=[]; },
   speed(){
     const depth=MapHeight.depthAt(this.pos.x,this.pos.z);
     const ws=WaterState.update(depth);
@@ -2815,18 +3276,27 @@ const PlayerMission = {
     const wade = opVal('wading', 1);
     if(wade < 1 && move < 1) move = 1-(1-move)*wade;
     if(opVal('swimOk', false) && move<1) move = 1-(1-move)*0.5;
+    // 专长「踏浪」：只在游泳态生效（WaterState.cur===3）
+    if(WaterState.cur===3) move *= opVal('swimSpeedMult', 1);
     // 绳忆（渠）+ 回潮（浚）：移速倍率
     let mult = opVal('speedMult', 1);
     if(this.hp/100 < opVal('lowHp', 0)) mult *= opVal('lowHpSpeed', 1);
+    // 专长「满潮疾行」：满潮段提速（专长字段默认 1，未选专长时无副作用）
+    if(TideMission.phase==='High') mult *= opVal('highTideSpeed', 1);
+    // 泄洪水幕（M02）：水幕里通行速度降到配置的 slow 倍率
+    if(typeof Sluice!=='undefined') mult *= Sluice.speedMult(this.pos);
     return 5.2*move*(1-over)*mult;
   },
-  damage(v,src){
+  damage(v,src,dist){
     if(this.dead) return;
     let dmg=v;
     // 锚定（堤）：站定不动够久后减伤 —— 把"站桩输出"变成一种可行打法
     const anchorT=opVal('anchorT', 0);
     if(anchorT>0 && this.stillT>=anchorT) dmg *= (1-opVal('anchorDR', 0));
     this.dmgTaken += dmg;
+    // 记录伤害来源（仅在玩家活着时累积；dmg 是实际扣除前的最终值）
+    this.lastDmg.push({src:src||'unknown', dmg:dmg, dist:isFinite(dist)?dist:NaN, t:TideMission.t});
+    if(this.lastDmg.length>8) this.lastDmg.shift();
     if(this.armor>0){ const a=Math.min(this.armor,dmg); this.armor-=a; dmg-=a; }
     this.hp-=dmg; AUD.hurt();
     if(this.hp<=0){ this.hp=0; this.dead=true; Mission.end(false,'killed'); }
@@ -2909,7 +3379,7 @@ const GhostCodec = {
       else pos.push(Math.round(s.t*this.TQ), Math.round(clamp(s.x,-32,32)*this.PQ), Math.round(clamp(s.z,-32,32)*this.PQ));
     }
     const payload={ v:this.VERSION, s:g.seed>>>0, o:g.op, g:g.gun, n:g.novice?1:0,
-      val:g.value|0, kil:g.kills|0, t:Math.round(g.t*this.TQ), ext:g.extracted?1:0, pos, ev };
+      m:g.map||'M01', pk:g.perk||'', val:g.value|0, kil:g.kills|0, t:Math.round(g.t*this.TQ), ext:g.extracted?1:0, pos, ev };
     const json=JSON.stringify(payload);
     const sum=(_fnv1a(json)&0xffff).toString(16).padStart(4,'0');
     return _b64urlEncode(json)+'|'+sum;       // 校验和与数据分离，解码时先验再解析
@@ -2928,7 +3398,7 @@ const GhostCodec = {
     for(let i=0;i<p.ev.length;i+=4) samples.push({ t:p.ev[i]/this.TQ, event:inv[p.ev[i+1]]||'mark', x:p.ev[i+2]/this.PQ, z:p.ev[i+3]/this.PQ });
     samples.sort((a,b)=>a.t-b.t);
     return { seed:p.s>>>0, op:p.o, gun:p.g, novice:!!p.n, value:p.val, kills:p.kil,
-      t:p.t/this.TQ, extracted:!!p.ext, samples };
+      t:p.t/this.TQ, extracted:!!p.ext, samples, map:p.m||'M01', perk:p.pk||'' };
   }
 };
 
@@ -2973,7 +3443,12 @@ let LastGhost=null;   // 本局结束时填充，供 P1-c.2「生成潮痕」UI 
 // ---- 任务总控 ----
 const Mission = {
   state:'IDLE', result:null, entities:{scavs:[],drones:[],warden:null},
-  start(seed, challenge){
+  start(seed, challenge, mapId){
+    // P1-b：地图由调用方指定；未指定则沿用当前图（默认 M01）。
+    // 测试里大量 `Mission.start(seed)` 的调用因此完全不受影响。
+    if(mapId && MAPS[mapId]) CURRENT_MAP = mapId;
+    const c = curMap();
+    this.mapId = c.id;
     // 幽灵竞速前置：每局都记录一个种子。正常游玩随机生成（与之前 Math.random 行为一致），
     // 挑战模式传入对方分享码里的种子 → 双方复现同一张地图，比赛才公平。
     this.seed = (seed!=null) ? (seed>>>0) : ((Math.random()*4294967296)>>>0);
@@ -2996,17 +3471,25 @@ const Mission = {
     } else {
       TideMission.HARD_CAP = 720;
     }
-    MapHeight.init(); TideMission.start(); LootSystem.spawn();
+    // 地形 / 出生点 / 撤离点 / 升降机全部由地图配置驱动（P1-b）
+    MapHeight.init();
+    SPAWN_POS.x = c.spawn.x; SPAWN_POS.z = c.spawn.z;
+    Extraction.load(c.extracts);
+    LiftSystem.reset();
+    Sluice.reset();          // 必须在 LootSystem.spawn 之前：它消耗 Rng，且只在 M02 消耗
+    TideMission.start(); LootSystem.spawn();
     BackPack.items=[]; PlayerMission.reset(); Extraction.reset();
     Extraction.alwaysShow = this.novice;   // 撤离点全程高亮，新手不会迷路（挑战模式关闭）
     WaterState.cur=0;
     // ★ 出生点安全半径：任何敌人都不得生成在玩家出生点 SAFE_R 米内
     const SAFE_R = 15;
     const spawn = PlayerMission.pos;          // reset() 已把玩家放回出生点（SPAWN_POS）
-    // ★ 新手（教学壳）额外把「出生点旁最显眼的教学撤离点 船坞闸门」纳入安全半径：
-    //   保证新手最自然的出口不被敌人蹲守（否则仍会在 8s 撤离通道处被冷枪磨死）。
+    // ★ 新手（教学壳）额外把「离出生点最近的那个撤离点」纳入安全半径 ——
+    //   不写死「船坞闸门」，因为那只是 M01 的教学出口；换图后最近的出口自动接棒，
+    //   保证新手最自然的撤离路线不被敌人蹲守（否则会在 8s 撤离通道处被冷枪磨死）。
     //   挑战模式(novice=false)不保护该点，保持公平复现。
-    const gate = Extraction.points.find(p=>p.id==='船坞闸门').pos;
+    const gate = Extraction.points.reduce((a,b)=>
+      dist(b.pos,spawn) < dist(a.pos,spawn) ? b : a).pos;
     const clear = this.novice
       ? (p)=> dist(p,spawn)>=SAFE_R && dist(p,gate)>=SAFE_R
       : (p)=> dist(p,spawn)>=SAFE_R;
@@ -3019,16 +3502,16 @@ const Mission = {
       return farthestPoint(spawn);            // 兜底：取地图上离出生点最远的格点
     };
     this.entities.scavs=[];
-    const scavCount = this.novice ? 6 : 12;   // 敌人减半（仅新手；挑战模式满编）
+    const scavCount = this.novice ? Math.ceil(c.scav/2) : c.scav;   // 敌人减半（仅新手；挑战模式满编）
     for(let i=0;i<scavCount;i++)
       this.entities.scavs.push(new Scavenger(safePoint(1.0)));
     // 固定点位先过滤掉危险点（距出生点 / 教学撤离点 15m 内都剔除），不足再补
-    const droneSpots=[[-20,10],[20,-15],[0,18],[-15,-5]]
+    const droneSpots=(c.droneSpots||[])
       .map(p=>({x:p[0],z:p[1]}))
       .filter(p=>clear(p));
-    while(droneSpots.length<4) droneSpots.push(safePoint(99));
+    while(droneSpots.length<(c.drone||4)) droneSpots.push(safePoint(99));
     this.entities.drones = droneSpots.map(p=>new SalvageDrone(p));
-    this.entities.warden=new TideWarden({x:0,z:0});
+    this.entities.warden=new TideWarden({x:c.warden.x, z:c.warden.z});
     if(this.novice){ PlayerMission.armor=50; PlayerMission.maxArmor=50; }  // 开局赠 1 级护甲（仅新手）
     Rng.reset();   // 生成结束即复位：运行期 AI 回到 Math.random，手感不受影响
     this.state='RUNNING'; Telemetry.log('mission_start',{novice:this.novice, seed:this.seed});
@@ -3051,6 +3534,11 @@ const Mission = {
     }
     const p=PlayerMission;
     GhostRecorder.record(dt, p);   // 幽灵竞速：每帧采样玩家轨迹
+    LiftSystem.update(dt, p);      // 货运升降机（M02）：站在踏板上 1.5s 送你上/下层
+    Sluice.tickWarnings(TideMission.t);
+    // 泄洪水幕：站在水幕里每秒吃伤害。放在这里而非渲染层，无头测试才能验到它
+    if(Sluice.cfg && Sluice.curtainAt(p.pos) && !p.dead)
+      p.damage(Sluice.cfg.dmg*dt, 'sluice', NaN);   // NaN → 死亡分析里显示为「—」，水幕没有"距离"可言
     this.entities.scavs.forEach(s=>s.update(dt,p));
     this.entities.drones.forEach(d=>{ if(d.state!=='DEAD') d.update(dt,p,this.entities.scavs); });
     this.entities.warden.update(dt,p);
@@ -3063,14 +3551,26 @@ const Mission = {
     const ph = TideMission.PHASES.find(p=>TideMission.t>=p.t0 && TideMission.t<p.t1);
     const phaseName = ph ? ph.name : 'High';
     if(extracted) GhostRecorder.mark('extract');   // 幽灵竞速：记录撤离时刻（供回放结尾）
+    // 死亡/撤离分析：合并 lastDmg 中同类型来源（累加 dmg），保留最近距离与时间戳。
+    // 最多取 3 个不同来源，避免死亡屏被长长列表淹没。
+    const merged = [];
+    for(const e of PlayerMission.lastDmg){
+      const m = merged.find(x=>x.type===e.src);
+      if(m){ m.damage += e.dmg; m.hits += 1;
+        if(isFinite(e.dist) && (!isFinite(m.distance) || e.dist<m.distance)) m.distance=e.dist;
+        m.lastAt = e.t;
+      } else merged.push({type:e.src, damage:e.dmg, hits:1, distance:e.dist, lastAt:e.t});
+    }
+    merged.sort((a,b)=>b.damage-a.damage);
     this.result={extracted,reason,value:BackPack.value,t:TideMission.t,
       phase:phaseName, kills:PlayerMission.kills, damageTaken:PlayerMission.dmgTaken, hpLeft:PlayerMission.hp,
-      seed:this.seed};   // 幽灵竞速：分享码需要本局种子以复现同一张地图
+      seed:this.seed, map:this.mapId,   // 地图解锁成就（M02）要靠它判定"是不是在闸门区满潮撤离的"
+      lastDamage: { sources: merged.slice(0,3), total:PlayerMission.dmgTaken, timeToDeath:TideMission.t }};   // 幽灵竞速：分享码需要本局种子以复现同一张地图
     // 产出可分享幽灵（分享码数据源）：记录本局的种子/配置/轨迹，P1-c.2 的「生成潮痕」读取它
     LastGhost = {
-      seed:this.seed, op:SalvageLoadout.op, gun:SalvageLoadout.gun,
+      seed:this.seed, op:SalvageLoadout.op, gun:SalvageLoadout.gun, perk:SalvageLoadout.perk,
       novice:this.novice, value:BackPack.value, kills:PlayerMission.kills,
-      t:TideMission.t, extracted, samples:GhostRecorder.samples.slice()
+      t:TideMission.t, extracted, map:this.mapId, samples:GhostRecorder.samples.slice()
     };
     // 解锁快照：结算前后各查一次，成就路径与次数路径都能被覆盖到
     const before = OPS.filter(o=>ShellMeta.opUnlocked(o.id)).map(o=>o.id);
@@ -3160,12 +3660,15 @@ function startSalvage(cfg){
   gameMode="salvage";
   SalvageLoadout.op = (cfg && cfg.op) ? cfg.op : 'kestrel';
   SalvageLoadout.gun = (cfg && cfg.gun) ? cfg.gun : 'K7';
+  SalvageLoadout.perk = (cfg && cfg.perk!=null) ? cfg.perk : '';   // 槽 A 专长：玩家主动选，或挑战局沿用对手潮痕里的专长
   salvGun = SALVAGE_GUNS[SalvageLoadout.gun] || SALVAGE_GUNS.K7;
   salvOp = SALVAGE_OPS[SalvageLoadout.op] || SALVAGE_OPS.kestrel;
   AUD.resume();
   Meta.load();
   // 挑战局：传入对方种子以复现同一张地图；challenge=true 强制满编、取消教学壳
-  Mission.start((cfg && cfg.seed!=null) ? cfg.seed : null, (cfg && cfg.challenge) || false);
+  // mapId 来自部署界面选择（默认 M01）；挑战局则用对方潮痕里记录的地图 —— 否则两张图成绩不可比
+  Mission.start((cfg && cfg.seed!=null) ? cfg.seed : null, (cfg && cfg.challenge) || false,
+                (cfg && cfg.map) ? cfg.map : 'M01');
   // 幽灵轨迹：挑战局载入对方潮痕；普通局清空，避免上一局的幽灵残留到新局里
   if(cfg && cfg.challenge && cfg.ghost) GhostPlayer.load(cfg.ghost.samples); else GhostPlayer.clear();
   showRuleReminder();
@@ -3176,6 +3679,12 @@ function startSalvage(cfg){
   TideMission.onWarning = (name)=>{ salvWarn="⚠ 潮汐预警："+name+" 段即将到来"; salvWarnT=4; AUD.warn(); };
   Mission.onGraceEnd = ()=>{ salvWarn="⚠ 静默期结束：敌方开始行动"; salvWarnT=3.5; AUD.warn(); };
   TideMission.onPhaseChange = (name)=>{ salvWarn="潮汐进入 "+name+" 段"; salvWarnT=3; };
+  // 泄洪预警：开闸前 15s 触发一次。听觉（警笛）+ 视觉（顶部 salvWarn 红条，drawSalvageHUD 已绘制）。
+  // 文案直接告诉玩家"绕行或走货运电梯"，把设定集 §3.1 的应对方案塞进预警里。
+  Sluice.onWarn = (e)=>{
+    salvWarn = "⚠ 泄洪！"+e.stairs.length+" 处楼梯正在灌水 "+(Math.round(e.dur))+"s —— 绕行楼梯或走货运电梯";
+    salvWarnT = 5; AUD.siren();
+  };
   MenuShell.hideAll();
   screen="play"; running=true; last=performance.now();
 }
@@ -3223,10 +3732,19 @@ function updateSalvage(dt){
   if(keys.has("KeyD")){mvx+=rx;mvz+=rz;}
   if(keys.has("KeyA")){mvx-=rx;mvz-=rz;}
   const L=Math.hypot(mvx,mvz);
-  if(L>0){ const sp=P.speed(); P.pos.x+=mvx/L*sp*dt; P.pos.z+=mvz/L*sp*dt; P.stillT=0; }
+  if(L>0){
+    const sp=P.speed(), step=sp*dt;
+    // 攀爬限制（M02 双层地形）：撞上崖壁时贴着墙滑，而不是原地卡死。
+    // M01 的 climbSlope 为 null → canStep 恒真，与改造前逐字节一致。
+    const tx=P.pos.x+mvx/L*step, tz=P.pos.z+mvz/L*step;
+    if(MapHeight.canStep(P.pos,{x:tx,z:P.pos.z})) P.pos.x=tx;
+    if(MapHeight.canStep(P.pos,{x:P.pos.x,z:tz})) P.pos.z=tz;
+    P.stillT=0;
+  }
   else P.stillT+=dt;      // 静止时长，供「锚定」减伤判定
-  P.pos.x=Math.max(-29.5,Math.min(29.5,P.pos.x));
-  P.pos.z=Math.max(-19.5,Math.min(19.5,P.pos.z));
+  // 活动边界随地图尺寸走（P1-b），不再写死 29.5 / 19.5
+  P.pos.x=Math.max(-MapHeight.boundX(),Math.min(MapHeight.boundX(),P.pos.x));
+  P.pos.z=Math.max(-MapHeight.boundZ(),Math.min(MapHeight.boundZ(),P.pos.z));
   // 涉水脚步音 + 环境水声
   const depth=MapHeight.depthAt(P.pos.x,P.pos.z);
   if(L>0){ stepAccum+=dt; if(stepAccum>0.32){ stepAccum=0; AUD.step(depth>0,depth); } }
@@ -3310,6 +3828,42 @@ function draw2DSalvage(){
     const sx=ox+w.pos.x*sp, sy=oz+w.pos.z*sp;
     ctx.fillStyle="#ff3b3b"; ctx.fillRect(sx-8,sy-8,16,16);
   }
+  // M02 白象街：泄洪水幕覆盖在被灌水的楼梯上（流动条纹），玩家站在其中时高亮
+  if(typeof Sluice!=='undefined' && Sluice.cfg){
+    const cur=Sluice.curtainAt(P.pos);
+    for(const e of Sluice.activeAt(TideMission.t)){
+      for(const id of e.stairs){
+        const rm=Sluice.rampById(id); if(!rm) continue;
+        const rx=ox+rm.rect[0]*sp, ry=oz+rm.rect[2]*sp;
+        const rw=(rm.rect[1]-rm.rect[0])*sp, rh=(rm.rect[3]-rm.rect[2])*sp;
+        const onMe = cur===rm;
+        ctx.save();
+        ctx.fillStyle = onMe ? "rgba(90,200,255,.45)" : "rgba(70,150,220,.30)";
+        ctx.fillRect(rx,ry,rw,rh);
+        ctx.globalAlpha=.5+.3*Math.abs(Math.sin(TideMission.t*5));
+        ctx.strokeStyle="rgba(200,240,255,.85)"; ctx.lineWidth=2;
+        for(let yy=ry-((TideMission.t*40)%24); yy<ry+rh; yy+=24){
+          ctx.beginPath(); ctx.moveTo(rx,yy); ctx.lineTo(rx+rw,yy+8); ctx.stroke();
+        }
+        ctx.globalAlpha=1;
+        ctx.fillStyle="#dff3ff"; ctx.font="bold 12px sans-serif"; ctx.textAlign="center";
+        ctx.fillText("⛲ 水幕", rx+rw/2, ry+rh/2);
+        ctx.restore();
+      }
+    }
+  }
+  // 货运电梯踏板
+  if(typeof LiftSystem!=='undefined' && LiftSystem.list.length){
+    for(const l of LiftSystem.list){
+      for(const side of ['low','high']){
+        const p=l[side], sx=ox+p.x*sp, sy=oz+p.z*sp;
+        ctx.fillStyle=(LiftSystem.ridingId()===l.id)?"rgba(127,233,255,.95)":"rgba(127,233,255,.4)";
+        ctx.beginPath(); ctx.arc(sx,sy,6,0,6.2832); ctx.fill();
+        ctx.fillStyle="#bfe9ff"; ctx.font="10px sans-serif"; ctx.textAlign="center";
+        ctx.fillText("电梯", sx, sy-9);
+      }
+    }
+  }
   ctx.fillStyle="#7fe9ff"; ctx.beginPath(); ctx.arc(ox+P.pos.x*sp,oz+P.pos.z*sp,5,0,6.2832); ctx.fill();
   ctx.strokeStyle="#7fe9ff"; ctx.beginPath(); ctx.moveTo(ox+P.pos.x*sp,oz+P.pos.z*sp);
   ctx.lineTo(ox+(P.pos.x+Math.sin(playerYaw)*3)*sp, oz+(P.pos.z-Math.cos(playerYaw))*sp); ctx.stroke();
@@ -3334,6 +3888,17 @@ function drawSalvageHUD(){
   if(TideMission.graceActive()){   // 静默期倒计时：明确告诉玩家"现在是安全的"
     ctx.fillStyle="#8fd3ff"; ctx.font="bold 13px sans-serif";
     ctx.fillText("◈ 静默期 "+Math.ceil(TideMission.graceLeft())+"s —— 敌方尚未察觉，先观察地形 / 规划搜刮路线",16,88);
+  }
+  // ★ 操作提示条：进游戏前 30s 显示（25s 满亮 + 5s 渐隐）—— 解"17s 阵亡"之困。
+  //   压底不推布局（HUD 54px 黑条之上不重排）。WASD/鼠标/左键/F/绿点撤离。
+  if(TideMission.t < 30){
+    const fade = TideMission.t < 25 ? 1 : Math.max(0, 1 - (TideMission.t-25)/5);
+    ctx.save();
+    ctx.globalAlpha = 0.88 * fade;
+    ctx.fillStyle="rgba(20,30,42,.94)"; ctx.fillRect(0, H-58, W, 36);
+    ctx.fillStyle="#9fd6ff"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("WASD 移动 / 鼠标 瞄准 / 左键 开火 / 按住 F 拾取战利品 / 走到绿色点撤离", W/2, H-34);
+    ctx.restore();
   }
   // ★ 成就进行中：把隐形目标变成可见的赌注。
   // 玩家看到「无痕 · 零击杀 —— 可解锁掠波」，再撞见拾荒者时才会犹豫：
@@ -3400,6 +3965,32 @@ function drawSalvageHUD(){
     ctx.fillText("按住 [F] 拾取 "+near.name+"（⌾"+near.value+"）",W/2,H-90); }
   if(salvWarnT>0){ ctx.fillStyle="rgba(255,210,90,"+Math.min(1,salvWarnT).toFixed(2)+")";
     ctx.font="bold 20px sans-serif"; ctx.textAlign="center"; ctx.fillText(salvWarn,W/2,110); salvWarnT-=1/60; }
+  ctx.textAlign="left";
+
+  // ---- M02 白象街：潮讯 + 泄洪水幕 + 货运电梯读条（仅在相关地图显示，无图不显示）----
+  if(typeof Sluice!=='undefined' && Sluice.cfg){
+    const ne=Sluice.nextEvent(TideMission.t);
+    if(ne){
+      const dt=Math.max(0,ne.t-TideMission.t), nm=Math.floor(dt/60), ns=String(Math.floor(dt%60)).padStart(2,'0');
+      ctx.fillStyle="#9fdcff"; ctx.font="13px sans-serif"; ctx.textAlign="center";
+      const inProg = TideMission.t>=ne.t && TideMission.t<ne.t+ne.dur;
+      ctx.fillText((inProg?"⛲ 泄洪进行中 —— 水幕覆盖楼梯":"下次泄洪 "+nm+":"+ns+"（绕行 / 货运电梯）"),W/2,128);
+    }
+    // 玩家正站在水幕里：明确的红字 + 减速/掉血提示（死因分析之外，给即时反馈）
+    if(Sluice.curtainAt(P.pos)){
+      ctx.fillStyle="rgba(255,90,90,"+(0.6+0.4*Math.abs(Math.sin(TideMission.t*6))).toFixed(2)+")";
+      ctx.font="bold 16px sans-serif"; ctx.textAlign="center";
+      ctx.fillText("⛲ 你正处水幕：移速 -"+(Math.round((1-Sluice.cfg.slow)*100))+"% / 每秒 "+Sluice.cfg.dmg+" 伤害 —— 快离开！",W/2,150);
+    }
+  }
+  // 货运电梯：站在踏板上时显示充能读条（"抢时间走楼梯，还是多等 1.5s 坐电梯"的抉择反馈）
+  if(typeof LiftSystem!=='undefined' && LiftSystem.progress()>0){
+    const w=220,x=W/2-w/2,y=H-150,pg=LiftSystem.progress();
+    ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(x,y,w,16);
+    ctx.fillStyle="#7fe9ff"; ctx.fillRect(x,y,w*pg,16);
+    ctx.fillStyle="#cfe6f5"; ctx.font="12px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("货运电梯运行中 "+Math.round(pg*100)+"%",W/2,y-4);
+  }
   ctx.textAlign="left";
 }
 
