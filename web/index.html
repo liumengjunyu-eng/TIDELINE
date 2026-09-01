@@ -1451,7 +1451,8 @@ function drawCrosshair() {
   const P=player(); if(!P) return;
   const eff=effWeaponFor(P);
   const sp=6+(P.heat/100)*34+eff.spread*260;
-  ctx.save(); ctx.strokeStyle="rgba(230,245,255,.85)"; ctx.lineWidth=1.6;
+  ctx.save(); ctx.strokeStyle=hoverIdent?"rgba(255,207,95,.95)":"rgba(230,245,255,.85)";   // v2.1：悬停可识别对象时准星变琥珀色
+  ctx.lineWidth=hoverIdent?2.2:1.6;
   for (let i=0;i<4;i++) {
     const a=i*Math.PI/2;
     ctx.beginPath();
@@ -1968,6 +1969,7 @@ const AUD = {
 /* ---------- 输入 ---------- */
 const keys=new Set();
 let mouseDown=false, mouseX=0, mouseY=0;
+let hoverIdent=false;   // v2.1：光标是否悬停在可识别对象上（准星变色反馈用）
 window.addEventListener("keydown", e => {
   if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Tab"].includes(e.code)) e.preventDefault();
   if (e.code==="KeyQ") { /* 技能槽预留（SALVAGE 暂无主动技能） */ }
@@ -4311,6 +4313,7 @@ FP.buildSalvage = function(){
   for(const b of bl){
     const bm=buildBuilding(b);
     bm.position.set(b.x, MapHeight.sample(b.x,b.z)-0.3, b.z);   // 下沉 0.3 嵌进地形，斜坡上不悬空
+    bm.userData.b=b;                                            // v2.1：足印数据，悬停识别用
     grp.add(bm); this.buildingMeshes.push(bm);
   }
   // v2：战利品价值浮签（单例复用，跟随离玩家最近的未拾取战利品）
@@ -4347,6 +4350,7 @@ function camLabelEl(){
   return el;
 }
 // 切换视角：只有第一人称需要指针锁定，其余模式必须释放，否则光标瞄准失效
+let camToastTimer=0;
 function applyCamMode(){
   if(typeof CamMode==='undefined') return CamMode && CamMode.cur;
   const fps = CamMode.cur==='fps';
@@ -4355,6 +4359,20 @@ function applyCamMode(){
     const el=camLabelEl();
     const play = (typeof screen!=='undefined' && screen==='play');
     if(el){ el.textContent='视角 '+CamMode.label+' · V 切换'; el.style.display=play?'':'none'; }
+    if(play){                                              // v2.1：切换瞬间屏中 toast，让"能切视角"被看见
+      let toast=document.getElementById('cam-toast');
+      if(!toast && document.createElement && document.body){
+        toast=document.createElement('div'); toast.id='cam-toast';
+        toast.style.cssText='position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:31;'
+          +'font-size:16px;letter-spacing:.2em;color:#e6f4f7;background:rgba(6,10,16,.72);'
+          +'border:1px solid rgba(120,207,255,.35);border-radius:6px;padding:8px 18px;'
+          +'pointer-events:none;opacity:0;transition:opacity .25s';
+        document.body.appendChild(toast);
+      }
+      if(toast){ toast.textContent='视角：'+CamMode.label; toast.style.opacity='1';
+        if(camToastTimer) clearTimeout(camToastTimer);
+        camToastTimer=setTimeout(()=>{ toast.style.opacity='0'; },1400); }
+    }
   }
   return CamMode.cur;
 }
@@ -4370,6 +4388,19 @@ function aimYawFromCursor(planeY){
   const hx = FP.camera.position.x + dir.x*k, hz = FP.camera.position.z + dir.z*k;
   return Math.atan2(hx-PlayerMission.pos.x, -(hz-PlayerMission.pos.z));
 }
+// v2.1 识别系统基元：光标射线与地面平面求交，返回交点世界坐标（俯视/跟随/环绕通用）。
+// 第一人称指针锁定时没有光标概念，返回 null（调用方回退到"身边最近对象"）。
+FP._cursorGround = function(planeY){
+  if(!FP.camera || typeof mouseX!=='number') return null;
+  if(typeof pointerLocked!=='undefined' && pointerLocked) return null;
+  const ndc = { x:(mouseX/window.innerWidth)*2-1, y:-(mouseY/window.innerHeight)*2+1 };
+  const v = new THREE.Vector3(ndc.x, ndc.y, 0.5).unproject(FP.camera);
+  const dir = v.sub(FP.camera.position).normalize();
+  if(Math.abs(dir.y) < 1e-5) return null;
+  const k = (planeY - FP.camera.position.y) / dir.y;
+  if(k <= 0) return null;                                  // 交点在相机后方
+  return { x: FP.camera.position.x + dir.x*k, z: FP.camera.position.z + dir.z*k };
+};
 FP.renderSalvage = function(t){
   if(!this.ok || !this.salvGroup) return;
   const P=PlayerMission; if(!P) return;
@@ -4421,16 +4452,48 @@ FP.renderSalvage = function(t){
     ud.dia.scale.setScalar(0.9 + r*0.12);
     ud.ring.scale.setScalar(0.9 + r*0.10);
     for(const mm of ud.mats) mm.color.setHex(col); }
-  if(this.lootLabel){                                        // v2：最近未拾取战利品的"名称 ⌾价值"浮签
-    let best=null, bd=36;
-    for(const it of LootSystem.items){ if(it.taken) continue;
-      const dx=it.pos.x-P.pos.x, dz=it.pos.z-P.pos.z, d2=dx*dx+dz*dz;
-      if(d2<bd){ bd=d2; best=it; } }
-    if(best){ const gy=Math.max(MapHeight.sample(best.pos.x,best.pos.z),TideMission.level);
+  if(this.lootLabel){                                        // v2.1：指哪显哪 —— 光标悬停对象的识别浮签
+    let txt=null, lcol="#cfd6dd", anchor=null, hover=false;
+    const planeY=Math.max(g,TideMission.level)+0.9;
+    const cg=(this._cursorGround && !pointerLocked) ? this._cursorGround(planeY) : null;
+    if(cg){
+      let bd=2.6*2.6;                                        // ① 物资：鼠标指向的核心对象，最优先
+      for(const it of LootSystem.items){ if(it.taken) continue;
+        const dx=it.pos.x-cg.x, dz=it.pos.z-cg.z, d2=dx*dx+dz*dz;
+        if(d2<bd){ bd=d2;
+          txt=it.name+" ⌾"+it.value+" · "+(Math.round((it.kg||0)*10)/10)+"kg";
+          lcol="#"+(RARITY_COL[it.rarity]||RARITY_COL[0]).toString(16).padStart(6,'0');
+          anchor=it.pos; hover=true; } }
+      if(!hover){                                            // ② 敌人：交战/巡逻状态一目了然
+        let ebd=2.2*2.2, etxt=null, epos=null;
+        const scan=(list,label)=>{ for(const e of list){ if(!e||e.state==='DEAD') continue;
+          const dx=e.pos.x-cg.x, dz=e.pos.z-cg.z, d2=dx*dx+dz*dz;
+          if(d2<ebd){ ebd=d2; etxt=label+(e.state==='COMBAT'?' · 交战中':' · 巡逻'); epos=e.pos; } } };
+        scan(Mission.entities.scavs,'拾荒者');
+        scan(Mission.entities.drones,'打捞无人机');
+        const wd=Mission.entities.warden;
+        if(wd&&wd.state!=='DEAD'){ const dx=wd.pos.x-cg.x, dz=wd.pos.z-cg.z, d2=dx*dx+dz*dz;
+          if(d2<ebd){ ebd=d2; etxt='潮汐守望者 · 首领'; epos=wd.pos; } }
+        if(etxt){ txt=etxt; lcol="#ff8a80"; anchor=epos; hover=true; } }
+      if(!hover && this.buildingMeshes){                     // ③ 建筑：命中足印即识别
+        for(const bm of this.buildingMeshes){ const b=bm.userData&&bm.userData.b; if(!b) continue;
+          if(Math.abs(cg.x-b.x)<=b.w/2+0.6 && Math.abs(cg.z-b.z)<=b.h/2+0.6){
+            txt=(BUILDING_TYPES[b.type]||BUILDING_TYPES.warehouse).name;
+            lcol="#ffd9a0"; anchor={x:b.x,z:b.z}; hover=true; break; } } }
+    }
+    if(!hover){                                              // 无悬停目标 → 兜底：身边最近物资
+      let bd=36;
+      for(const it of LootSystem.items){ if(it.taken) continue;
+        const dx=it.pos.x-P.pos.x, dz=it.pos.z-P.pos.z, d2=dx*dx+dz*dz;
+        if(d2<bd){ bd=d2; txt=it.name+" ⌾"+it.value;
+          lcol="#"+(RARITY_COL[it.rarity]||RARITY_COL[0]).toString(16).padStart(6,'0');
+          anchor=it.pos; } }
+    }
+    hoverIdent=!!(txt&&anchor);
+    if(txt&&anchor){ const gy=Math.max(MapHeight.sample(anchor.x,anchor.z),TideMission.level);
       this.lootLabel.visible=true;
-      this.lootLabel.position.set(best.pos.x, gy+2.1, best.pos.z);
-      const lc=(RARITY_COL[best.rarity]||RARITY_COL[0]).toString(16).padStart(6,'0');
-      setSpriteText(this.lootLabel, best.name+" ⌾"+best.value, "#"+lc);
+      this.lootLabel.position.set(anchor.x, gy+2.1, anchor.z);
+      setSpriteText(this.lootLabel, txt, lcol);
     } else this.lootLabel.visible=false; }
   for(let i=0;i<this.scavPool.length;i++){ const s=Mission.entities.scavs[i], m=this.scavPool[i];
     if(!s||s.state==='DEAD'){ m.visible=false; continue; } m.visible=true;
