@@ -1986,15 +1986,21 @@ window.addEventListener("blur", () => { keys.clear(); mouseDown=false; });
 // 第一人称：点击画面锁定鼠标并开火；其余模式保持自由光标，用其在地面的投影点瞄准（左键仍开火）
 let orbitDragging=false;
 sceneCanvas.addEventListener("mousedown", e => {
-  if (e.button!==0) return;
   if (screen!=="play") return;
+  if (e.button===2){                                       // v2.2：环绕视角改用右键拖拽，左键专司开火
+    if (typeof CamMode!=='undefined' && CamMode.cur==='orbit') orbitDragging=true;
+    return;
+  }
+  if (e.button!==0) return;
   AUD.resume();
   const fps = (typeof CamMode!=='undefined') ? CamMode.cur==='fps' : true;
   if (fps && !pointerLocked && sceneCanvas.requestPointerLock) sceneCanvas.requestPointerLock();
-  if (typeof CamMode!=='undefined' && CamMode.cur==='orbit') orbitDragging=true;
   mouseDown=true;
 });
-window.addEventListener("mouseup", e => { if (e.button===0){ mouseDown=false; orbitDragging=false; } });
+window.addEventListener("mouseup", e => {
+  if (e.button===0) mouseDown=false;
+  if (e.button===0 || e.button===2) orbitDragging=false;
+});
 window.addEventListener("mousemove", e => {
   if (pointerLocked) {
     playerYaw -= (e.movementX||0)*0.0024;
@@ -4356,6 +4362,9 @@ function applyCamMode(){
   const fps = CamMode.cur==='fps';
   if(typeof document!=='undefined'){
     if(!fps && document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
+    if(fps && !document.pointerLockElement && typeof sceneCanvas!=='undefined' && sceneCanvas.requestPointerLock){
+      try{ sceneCanvas.requestPointerLock(); }catch(err){}   // v2.2：切到第一人称立即锁定，避免"半状态"
+    }
     const el=camLabelEl();
     const play = (typeof screen!=='undefined' && screen==='play');
     if(el){ el.textContent='视角 '+CamMode.label+' · V 切换'; el.style.display=play?'':'none'; }
@@ -4418,8 +4427,20 @@ FP.renderSalvage = function(t){
     this.camera.position.set(P.pos.x, eye+H, P.pos.z+BACK);
     this.camera.lookAt(P.pos.x, eye, P.pos.z);
   } else if(cm==='follow'){
-    const D=6.5, UP=3.2;
-    this.camera.position.set(P.pos.x-Math.sin(playerYaw)*D, eye+UP, P.pos.z+Math.cos(playerYaw)*D);
+    // v2.2：相机跟随"移动方向"而非"鼠标瞄准朝向"——否则鼠标一动，相机绕角色抡圈（世界打转）。
+    // 角色本体仍按光标瞄准旋转（双摇杆式 2.5D 手感），镜头只在人物移动时平滑转向。
+    const dt=Math.max(0.001, Math.min(0.1, t-(this._lastT||t))); this._lastT=t;
+    const mdx=P.pos.x-(this._lastPX==null?P.pos.x:this._lastPX);
+    const mdz=P.pos.z-(this._lastPZ==null?P.pos.z:this._lastPZ);
+    this._lastPX=P.pos.x; this._lastPZ=P.pos.z;
+    if(mdx*mdx+mdz*mdz>1e-6){
+      const target=Math.atan2(mdx,-mdz);                     // 与 playerYaw 同约定：forward=(sin,-cos)
+      const cur=(this._camYaw==null)?target:this._camYaw;
+      let d=target-cur; d=Math.atan2(Math.sin(d),Math.cos(d));
+      this._camYaw=cur+d*Math.min(1,dt*5);
+    }
+    const cy=(this._camYaw==null)?playerYaw:this._camYaw, D=6.5, UP=3.2;
+    this.camera.position.set(P.pos.x-Math.sin(cy)*D, eye+UP, P.pos.z+Math.cos(cy)*D);
     this.camera.lookAt(P.pos.x, eye+0.9, P.pos.z);
   } else if(cm==='orbit'){
     const oy=CamMode.orbitYaw, op=CamMode.orbitPitch, od=CamMode.orbitDist;
